@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Banknote, CheckCircle, CreditCard, Loader2, ShieldCheck, X } from "lucide-react";
+import { BadgePercent, Banknote, CheckCircle, CreditCard, Loader2, ShieldCheck, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import type { CartItem, CheckoutItem } from "@/types";
+import type { CartItem, CheckoutItem, PromoClaim } from "@/types";
 
 interface Props { isOpen:boolean; onClose:()=>void; storeId:string; tableNumber?:string; cartItems:CartItem[]; onOrderCreated?:(id:string,no:number,total:number)=>void; onPaymentComplete:(method?:string)=>void; customerName?:string; customerPhone?:string; customerEmail?:string; notes?:string }
 const METHODS = [
@@ -17,6 +17,9 @@ export default function PaymentModal(props:Props) {
   const { token, user } = useAuth();
   const [method,setMethod] = useState<Method|null>(null);
   const [processing,setProcessing] = useState(false);
+  const [claims,setClaims] = useState<PromoClaim[]>([]);
+  const [promoClaimId,setPromoClaimId] = useState("");
+  const [promoCode,setPromoCode] = useState("");
   const snapLoaded = useRef(false);
   const total = props.cartItems.reduce((sum,item)=>sum+Number(item.price)*item.quantity,0);
   useEffect(()=>{
@@ -27,10 +30,12 @@ export default function PaymentModal(props:Props) {
     script.dataset.clientKey=process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY??""; script.async=true;
     script.onload=()=>{snapLoaded.current=true;}; document.head.appendChild(script);
   },[props.isOpen]);
+  useEffect(()=>{if(!props.isOpen||!token)return;fetch(`/api/promos/wallet?storeId=${props.storeId}`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json()).then(r=>setClaims(r.data||[])).catch(()=>{})},[props.isOpen,props.storeId,token]);
+  const redeemCode=async()=>{if(!token)return toast.error("Login terlebih dahulu untuk menukar kode");const response=await fetch('/api/promos/claim-code',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({storeId:props.storeId,code:promoCode})});const result=await response.json();if(!response.ok)return toast.error(result.error||'Kode tidak valid');const claim={...result.data,promo:result.data.promo} as PromoClaim;setClaims(prev=>[claim,...prev]);setPromoClaimId(claim.id);setPromoCode('');toast.success('Promo berhasil ditambahkan dan dipilih')};
   const createOrder=async()=>{
     const items:CheckoutItem[]=props.cartItems.map(item=>({menu_item_id:item.id,quantity:item.quantity,notes:item.notes}));
     const headers:Record<string,string>={"Content-Type":"application/json"}; if(token) headers.Authorization=`Bearer ${token}`;
-    const response=await fetch("/api/orders",{method:"POST",headers,body:JSON.stringify({storeId:props.storeId,tableNumber:props.tableNumber||null,userId:user?.id||null,anonymousSessionId:localStorage.getItem("selforder_session_id"),customerName:props.customerName||null,customerPhone:props.customerPhone||null,customerEmail:props.customerEmail||null,notes:props.notes||null,items})});
+    const response=await fetch("/api/orders",{method:"POST",headers,body:JSON.stringify({storeId:props.storeId,tableNumber:props.tableNumber||null,userId:user?.id||null,anonymousSessionId:localStorage.getItem("selforder_session_id"),customerName:props.customerName||null,customerPhone:props.customerPhone||null,customerEmail:props.customerEmail||null,notes:props.notes||null,promoClaimId:promoClaimId||null,items})});
     const result=await response.json(); if(!response.ok) throw new Error(result.error||"Gagal membuat pesanan");
     return {id:result.data.order_id as string,number:result.data.order_number as number,total:result.data.total_amount as number};
   };
@@ -55,6 +60,7 @@ export default function PaymentModal(props:Props) {
     <motion.div initial={{y:80,opacity:0}} animate={{y:0,opacity:1}} className="mx-auto w-full max-w-md overflow-hidden rounded-t-[2rem] bg-white shadow-2xl sm:rounded-[2rem]">
       <div className="flex items-start justify-between bg-gradient-to-br from-navy-900 to-blue-900 p-6 text-white"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-blue-200">Checkout aman</p><h2 className="mt-1 text-2xl font-bold">Pilih pembayaran</h2></div><button onClick={props.onClose} className="rounded-full bg-white/10 p-2"><X className="h-5 w-5"/></button></div>
       <div className="space-y-5 p-5"><div className="rounded-2xl bg-blue-50 p-4"><p className="text-xs text-blue-600">Estimasi total</p><p className="text-3xl font-extrabold text-navy-950">Rp {total.toLocaleString("id-ID")}</p><p className="mt-1 text-xs text-navy-400">Total final termasuk pajak dan service charge dihitung server.</p></div>
+        <div><p className="mb-2 flex items-center gap-2 text-sm font-bold text-navy-900"><BadgePercent className="h-4 w-4 text-blue-600"/>Promo</p><div className="mb-2 flex gap-2"><input value={promoCode} onChange={e=>setPromoCode(e.target.value.toUpperCase())} placeholder="Masukkan kode promo" className="min-w-0 flex-1 rounded-xl border-2 border-blue-100 px-3 py-2 text-sm font-bold uppercase text-navy-900 outline-none focus:border-blue-500"/><button type="button" onClick={redeemCode} className="rounded-xl bg-navy-950 px-4 text-xs font-bold text-white">Tukar</button></div>{claims.length>0&&<select value={promoClaimId} onChange={e=>setPromoClaimId(e.target.value)} className="w-full rounded-2xl border-2 border-blue-100 bg-white p-3 text-sm font-semibold text-navy-900 outline-none focus:border-blue-500"><option value="">Tanpa promo</option>{claims.map(claim=><option key={claim.id} value={claim.id}>{claim.promo.code} — {claim.promo.name} ({claim.promo.discount_type==='percent'?`${claim.promo.discount_value}%`:`Rp ${Number(claim.promo.discount_value).toLocaleString('id-ID')}`})</option>)}</select>}<p className="mt-1 text-[11px] text-slate-400">Claim membutuhkan login. Diskon final diverifikasi otomatis oleh server.</p></div>
         <div className="space-y-3">{METHODS.map(({id,name,description,Icon})=><button key={id} onClick={()=>setMethod(id)} className={`flex w-full items-center gap-4 rounded-2xl border-2 p-4 text-left transition ${method===id?"border-blue-600 bg-blue-50 shadow-md":"border-navy-100 hover:border-blue-300"}`}><span className="grid h-12 w-12 place-items-center rounded-2xl bg-navy-900 text-white"><Icon className="h-6 w-6"/></span><span className="flex-1"><b className="block text-navy-950">{name}</b><small className="text-navy-500">{description}</small></span>{method===id&&<CheckCircle className="h-5 w-5 text-blue-600"/>}</button>)}</div>
         <button disabled={!method||processing} onClick={pay} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-4 font-bold text-white shadow-lg shadow-blue-600/25 hover:bg-blue-700 disabled:opacity-40">{processing?<Loader2 className="h-5 w-5 animate-spin"/>:<ShieldCheck className="h-5 w-5"/>}{processing?"Memproses...":"Lanjutkan pembayaran"}</button>
       </div>

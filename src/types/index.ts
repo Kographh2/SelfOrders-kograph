@@ -94,6 +94,9 @@ export interface Order {
   tax_amount: number;
   service_charge: number;
   total_amount: number;
+  promo_id?: string;
+  promo_claim_id?: string;
+  promo_discount?: number;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -102,6 +105,16 @@ export interface Order {
   table?: Table;
   payments?: Payment[];
 }
+
+export interface Promo {
+  id: string; store_id: string; code: string; name: string; description?: string;
+  discount_type: "percent" | "fixed"; discount_value: number; max_discount?: number;
+  min_purchase: number; applies_to: "all" | "products"; total_quota?: number;
+  per_user_limit: number; starts_at: string; ends_at?: string; is_active: boolean;
+  product_ids?: string[]; claimed_count?: number;
+}
+
+export interface PromoClaim { id:string; promo_id:string; used_order_id?:string; claimed_at:string; promo:Promo }
 
 export interface OrderItem {
   id: string;

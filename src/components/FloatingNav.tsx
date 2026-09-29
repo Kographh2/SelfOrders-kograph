@@ -110,26 +110,26 @@ export default function FloatingNav({
         className="fixed bottom-0 left-0 right-0 z-50 border-t border-blue-100 bg-white/95 backdrop-blur-xl dark:border-white/10 dark:bg-[#061124]/95"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <div className="flex items-center justify-around h-[4.5rem] px-2 max-w-md mx-auto">
+        <div className="mx-auto grid h-[4.75rem] w-full max-w-md grid-cols-5 items-center px-2">
           {/* Home */}
-          <button className="flex flex-col items-center gap-1 px-3 py-1.5 text-blue-600" aria-label="Menu">
+          <button className="flex flex-col items-center justify-self-center gap-1 px-2 py-1.5 text-blue-600" aria-label="Menu">
             <Home className="w-6 h-6" />
             <span className="text-[10px] font-medium">Menu</span>
           </button>
 
           {/* Search */}
-          <button onClick={onSearchClick} className="flex flex-col items-center gap-1 px-3 py-1.5 text-slate-400 hover:text-blue-600" aria-label="Cari">
+          <button onClick={onSearchClick} className="flex flex-col items-center justify-self-center gap-1 px-2 py-1.5 text-slate-400 hover:text-blue-600" aria-label="Cari">
             <Search className="w-6 h-6" />
             <span className="text-[10px] font-medium">Cari</span>
           </button>
 
-          <motion.button whileTap={{scale:.9}} onClick={onScanClick} className="relative -mt-8 grid h-16 w-16 shrink-0 place-items-center rounded-full border-[5px] border-white bg-blue-600 text-white shadow-xl shadow-blue-900/30 dark:border-[#061124]" aria-label="Scan QR meja"><ScanLine className="h-7 w-7"/></motion.button>
+          <motion.button whileTap={{scale:.9}} onClick={onScanClick} className="relative -mt-8 grid h-16 w-16 justify-self-center place-items-center rounded-full border-[5px] border-white bg-blue-600 text-white shadow-xl shadow-blue-900/30 dark:border-[#061124]" aria-label="Scan QR meja"><ScanLine className="h-7 w-7"/></motion.button>
 
           {/* Cart */}
           <motion.button
             whileTap={{ scale: 0.92 }}
             onClick={onCartClick}
-            className="relative flex flex-col items-center gap-1 px-3 py-1.5 text-slate-400 hover:text-blue-600"
+            className="relative flex flex-col items-center justify-self-center gap-1 px-2 py-1.5 text-slate-400 hover:text-blue-600"
             aria-label="Keranjang"
           >
             <ShoppingCart className="w-6 h-6" />
@@ -149,7 +149,7 @@ export default function FloatingNav({
           {/* Profile */}
           <button
             onClick={() => setShowMenu(v => !v)}
-            className={`relative flex flex-col items-center gap-1 px-3 py-1.5 ${showMenu ? "text-navy-900" : "text-navy-400"}`}
+            className={`relative flex flex-col items-center justify-self-center gap-1 px-2 py-1.5 ${showMenu ? "text-navy-900" : "text-navy-400"}`}
             aria-label="Akun"
           >
             {/* Always render User icon on SSR, swap to avatar after mount */}

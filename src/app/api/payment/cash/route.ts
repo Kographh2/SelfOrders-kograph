@@ -6,8 +6,14 @@ import { notifyOrderStatus } from "@/lib/push-notifications";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const orderId = String(body.orderId || "");
-    if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
+    const requestedCode = String(body.orderId || "").trim();
+    if (!requestedCode) return NextResponse.json({ error: "orderId required" }, { status: 400 });
+    let orderId = requestedCode;
+    if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(requestedCode)) {
+      const { data: payment } = await supabaseAdmin.from("payments").select("order_id").eq("transaction_id", requestedCode).maybeSingle();
+      if (!payment) return NextResponse.json({ error: "Barcode pembayaran tidak valid" }, { status: 404 });
+      orderId = payment.order_id;
+    }
     const { data: order } = await supabaseAdmin.from("orders").select("id,store_id,user_id,anonymous_session_id,order_number,total_amount,payment_status,status").eq("id", orderId).single();
     if (!order) return NextResponse.json({ error: "Pesanan tidak ditemukan" }, { status: 404 });
     if (body.confirm === true) {
@@ -24,9 +30,10 @@ export async function POST(request: NextRequest) {
     const ownsOrder = (customer?.userId && customer.userId === order.user_id) || (body.sessionId && body.sessionId === order.anonymous_session_id);
     if (!ownsOrder) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     if (order.payment_status !== "pending") return NextResponse.json({ error: "Pembayaran sudah diproses" }, { status: 400 });
+    const cashCode = `CASH-${String(order.order_number).padStart(3,"0")}-${order.id.slice(0,8).toUpperCase()}`;
     await supabaseAdmin.from("orders").update({ payment_method:"cash", updated_at:new Date().toISOString() }).eq("id", orderId);
-    await supabaseAdmin.from("payments").update({ method:"cash", transaction_id:`CASH-${order.id}`, updated_at:new Date().toISOString() }).eq("order_id", orderId);
-    return NextResponse.json({ data:{ cashCode:`CASH-${order.id}`, orderNumber:order.order_number, total:order.total_amount } });
+    await supabaseAdmin.from("payments").update({ method:"cash", transaction_id:cashCode, updated_at:new Date().toISOString() }).eq("order_id", orderId);
+    return NextResponse.json({ data:{ cashCode, orderNumber:order.order_number, total:order.total_amount } });
   } catch (error) {
     console.error("Cash payment error", error);
     return NextResponse.json({ error:"Gagal memproses pembayaran tunai" }, { status:500 });

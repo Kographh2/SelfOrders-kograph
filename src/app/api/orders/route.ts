@@ -62,7 +62,20 @@ export async function POST(request: NextRequest) {
       customerEmail,
       notes,
       items,
+      promoClaimId,
     } = body;
+    const customerAuth = await getAuthUser(request);
+    let claimedPromo: any = null;
+    if (promoClaimId) {
+      if (!customerAuth || customerAuth.role !== "user") return NextResponse.json({ error: "Login diperlukan untuk memakai promo" }, { status: 401 });
+      const { data: claim } = await supabaseAdmin.from("promo_claims").select("id,user_id,used_order_id,promo:promos(*)").eq("id", promoClaimId).eq("user_id", customerAuth.userId).single();
+      const promo = Array.isArray(claim?.promo) ? claim?.promo[0] : claim?.promo;
+      const now = Date.now();
+      if (!claim || !promo || claim.used_order_id || !promo.is_active || promo.store_id !== storeId || new Date(promo.starts_at).getTime() > now || (promo.ends_at && new Date(promo.ends_at).getTime() < now)) {
+        return NextResponse.json({ error: "Promo tidak valid, kedaluwarsa, atau sudah digunakan" }, { status: 400 });
+      }
+      claimedPromo = { claim, promo };
+    }
 
     if (!storeId) {
       return NextResponse.json({ error: "storeId is required" }, { status: 400 });
@@ -128,7 +141,7 @@ export async function POST(request: NextRequest) {
     const { data: result, error: rpcError } = await supabaseAdmin.rpc("create_order_atomic", {
       p_store_id:            storeId,
       p_table_id:            resolvedTableId,
-      p_user_id:             userId ?? null,
+      p_user_id:             customerAuth?.userId ?? null,
       p_anonymous_session_id: anonymousSessionId ?? null,
       p_customer_name:       customerName ?? null,
       p_customer_phone:      customerPhone ?? null,
@@ -143,6 +156,33 @@ export async function POST(request: NextRequest) {
         { error: rpcError.message || "Gagal membuat pesanan" },
         { status: 400 }
       );
+    }
+
+    if (claimedPromo) {
+      const orderId = result.order_id as string;
+      const { data: orderItems } = await supabaseAdmin.from("order_items").select("menu_item_id,subtotal").eq("order_id", orderId);
+      let eligibleSubtotal = Number(result.subtotal);
+      if (claimedPromo.promo.applies_to === "products") {
+        const { data: targets } = await supabaseAdmin.from("promo_products").select("menu_item_id").eq("promo_id", claimedPromo.promo.id);
+        const allowed = new Set((targets || []).map(row => row.menu_item_id));
+        eligibleSubtotal = (orderItems || []).filter(row => allowed.has(row.menu_item_id)).reduce((sum, row) => sum + Number(row.subtotal), 0);
+      }
+      if (Number(result.subtotal) < Number(claimedPromo.promo.min_purchase || 0) || eligibleSubtotal <= 0) {
+        await supabaseAdmin.from("orders").delete().eq("id", orderId);
+        return NextResponse.json({ error: "Pesanan belum memenuhi syarat promo" }, { status: 400 });
+      }
+      let discount = claimedPromo.promo.discount_type === "percent" ? eligibleSubtotal * Number(claimedPromo.promo.discount_value) / 100 : Number(claimedPromo.promo.discount_value);
+      if (claimedPromo.promo.max_discount) discount = Math.min(discount, Number(claimedPromo.promo.max_discount));
+      discount = Math.max(0, Math.min(Math.round(discount), Number(result.total_amount)));
+      const finalTotal = Number(result.total_amount) - discount;
+      const { data: usedClaim } = await supabaseAdmin.from("promo_claims").update({ used_order_id: orderId, used_at: new Date().toISOString() }).eq("id", promoClaimId).is("used_order_id", null).select("id").maybeSingle();
+      if (!usedClaim) { await supabaseAdmin.from("orders").delete().eq("id", orderId); return NextResponse.json({ error: "Promo baru saja digunakan di pesanan lain" }, { status: 409 }); }
+      await Promise.all([
+        supabaseAdmin.from("orders").update({ promo_id: claimedPromo.promo.id, promo_claim_id: promoClaimId, promo_discount: discount, total_amount: finalTotal }).eq("id", orderId),
+        supabaseAdmin.from("payments").update({ amount: finalTotal }).eq("order_id", orderId),
+      ]);
+      result.promo_discount = discount;
+      result.total_amount = finalTotal;
     }
 
     return NextResponse.json({ data: result }, { status: 201 });

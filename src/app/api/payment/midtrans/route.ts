@@ -87,6 +87,14 @@ export async function POST(request: NextRequest) {
         quantity: 1,
       });
     }
+    if (Number(order.promo_discount) > 0) {
+      midtransItems.push({
+        id: "promo-discount",
+        name: "Diskon Promo",
+        price: -Math.round(Number(order.promo_discount)),
+        quantity: 1,
+      });
+    }
 
     const transaction = await createSnapTransaction({
       orderId: orderId, // Midtrans order_id = our order UUID
