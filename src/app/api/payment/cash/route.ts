@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { getAuthUser, hasStoreAccess, isStaff } from "@/lib/auth";
+import { notifyOrderStatus } from "@/lib/push-notifications";
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,6 +17,7 @@ export async function POST(request: NextRequest) {
       await supabaseAdmin.from("payments").update({ status:"paid", paid_at:new Date().toISOString(), updated_at:new Date().toISOString() }).eq("order_id", orderId);
       const { data, error } = await supabaseAdmin.from("orders").update({ payment_status:"paid", status:"confirmed", payment_method:"cash", updated_at:new Date().toISOString() }).eq("id", orderId).select().single();
       if (error) throw error;
+      await notifyOrderStatus(orderId, "confirmed");
       return NextResponse.json({ data });
     }
     const customer = await getAuthUser(request);

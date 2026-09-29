@@ -3,13 +3,22 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, BellOff, X } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface NotificationPromptProps {
   onComplete: () => void;
+  storeId?: string;
 }
 
-export default function NotificationPrompt({ onComplete }: NotificationPromptProps) {
+export default function NotificationPrompt({ onComplete, storeId }: NotificationPromptProps) {
   const [visible, setVisible] = useState(true);
+  const { user } = useAuth();
+
+  const toUint8Array = (value: string) => {
+    const padding = "=".repeat((4 - value.length % 4) % 4);
+    const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+    return Uint8Array.from(atob(base64), char => char.charCodeAt(0));
+  };
 
   const handleEnable = async () => {
     setVisible(false);
@@ -23,7 +32,7 @@ export default function NotificationPrompt({ onComplete }: NotificationPromptPro
             if (vapidKey) {
               const sub = await reg.pushManager.subscribe({
                 userVisibleOnly: true,
-                applicationServerKey: vapidKey,
+                applicationServerKey: toUint8Array(vapidKey),
               });
               await fetch("/api/push/subscribe", {
                 method: "POST",
@@ -32,6 +41,9 @@ export default function NotificationPrompt({ onComplete }: NotificationPromptPro
                   endpoint: sub.endpoint,
                   p256dh: btoa(String.fromCharCode(...Array.from(new Uint8Array(sub.getKey("p256dh")!)))),
                   auth: btoa(String.fromCharCode(...Array.from(new Uint8Array(sub.getKey("auth")!)))),
+                  userId: user?.id ?? null,
+                  anonymousSessionId: localStorage.getItem("selforder_session_id"),
+                  storeId: storeId || null,
                 }),
               });
             }
@@ -43,11 +55,13 @@ export default function NotificationPrompt({ onComplete }: NotificationPromptPro
     } catch {
       // Notification permission failed — non-blocking
     }
+    localStorage.setItem("notification_prompt_seen", "1");
     onComplete();
   };
 
   const handleSkip = () => {
     setVisible(false);
+    localStorage.setItem("notification_prompt_seen", "1");
     onComplete();
   };
 

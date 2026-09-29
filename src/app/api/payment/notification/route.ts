@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { verifyMidtransSignature } from "@/lib/midtrans";
+import { notifyOrderStatus } from "@/lib/push-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +97,8 @@ export async function POST(request: NextRequest) {
       .from("orders")
       .update(orderUpdate)
       .eq("id", orderId);
+
+    if (isPaid) await notifyOrderStatus(orderId, "confirmed");
 
     return NextResponse.json({ status: "ok" }, { status: 200 });
   } catch (error: unknown) {

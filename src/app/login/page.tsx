@@ -46,7 +46,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-600 via-rose-600 to-primary-700 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-[#06152e] via-blue-900 to-blue-600 flex items-center justify-center p-4 relative overflow-hidden">
       <Toaster position="top-center" />
       <div className="absolute inset-0 -z-0 opacity-20">
         <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-white/10 rounded-full filter blur-3xl animate-pulse" />
@@ -157,7 +157,7 @@ export default function LoginPage() {
               whileTap={{ scale: 0.97 }}
               type="submit"
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-primary-600 to-rose-600 text-white py-3.5 rounded-xl font-semibold hover:shadow-lg disabled:opacity-60 flex items-center justify-center gap-2 transition-all"
+            className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 hover:shadow-lg disabled:opacity-60 flex items-center justify-center gap-2 transition-all"
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -178,7 +178,7 @@ export default function LoginPage() {
             Belum punya akun?{" "}
             <Link
               href="/register"
-              className="text-rose-600 hover:text-rose-700 font-semibold"
+              className="text-blue-600 hover:text-blue-700 font-semibold"
             >
               Daftar sekarang
             </Link>

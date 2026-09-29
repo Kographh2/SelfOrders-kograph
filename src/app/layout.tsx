@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import PushNotificationProvider from "@/components/PushNotificationProvider";
 
 export const metadata: Metadata = {
   title: { default: "SelfOrder", template: "%s | SelfOrder" },
@@ -32,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="antialiased">
         <AuthProvider>
-          {children}
+          <PushNotificationProvider>{children}</PushNotificationProvider>
         </AuthProvider>
       </body>
     </html>

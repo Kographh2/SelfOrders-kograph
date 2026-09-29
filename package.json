@@ -12,6 +12,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
     "@types/jsbarcode": "^3.11.4",
+    "@types/web-push": "3.6.4",
+    "@zxing/browser": "0.2.1",
     "framer-motion": "^11.11.9",
     "jsbarcode": "^3.12.3",
     "jsonwebtoken": "^9.0.2",
@@ -21,7 +23,8 @@
     "qrcode": "^1.5.4",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "react-hot-toast": "2.6.1"
+    "react-hot-toast": "2.6.1",
+    "web-push": "3.6.7"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.7",

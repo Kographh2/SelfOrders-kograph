@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Home, Search, ShoppingCart, User, LogOut, LayoutDashboard } from "lucide-react";
+import { Home, Search, ShoppingCart, User, LogOut, LayoutDashboard, ScanLine } from "lucide-react";
 import { useAuth, useRole } from "@/contexts/AuthContext";
 import Link from "next/link";
 
@@ -11,6 +11,7 @@ interface FloatingNavProps {
   onCartClick?: () => void;
   onProfileClick?: () => void;
   onSearchClick?: () => void;
+  onScanClick?: () => void;
 }
 
 export default function FloatingNav({
@@ -18,6 +19,7 @@ export default function FloatingNav({
   onCartClick,
   onProfileClick,
   onSearchClick,
+  onScanClick,
 }: FloatingNavProps) {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -108,7 +110,7 @@ export default function FloatingNav({
         className="fixed bottom-0 left-0 right-0 z-50 border-t border-blue-100 bg-white/95 backdrop-blur-xl dark:border-white/10 dark:bg-[#061124]/95"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <div className="flex items-center justify-around h-16 px-2 max-w-sm mx-auto">
+        <div className="flex items-center justify-around h-[4.5rem] px-2 max-w-md mx-auto">
           {/* Home */}
           <button className="flex flex-col items-center gap-1 px-3 py-1.5 text-blue-600" aria-label="Menu">
             <Home className="w-6 h-6" />
@@ -120,6 +122,8 @@ export default function FloatingNav({
             <Search className="w-6 h-6" />
             <span className="text-[10px] font-medium">Cari</span>
           </button>
+
+          <motion.button whileTap={{scale:.9}} onClick={onScanClick} className="relative -mt-8 grid h-16 w-16 shrink-0 place-items-center rounded-full border-[5px] border-white bg-blue-600 text-white shadow-xl shadow-blue-900/30 dark:border-[#061124]" aria-label="Scan QR meja"><ScanLine className="h-7 w-7"/></motion.button>
 
           {/* Cart */}
           <motion.button

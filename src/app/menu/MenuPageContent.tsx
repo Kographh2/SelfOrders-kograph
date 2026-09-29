@@ -9,20 +9,23 @@ import CartDrawer from "@/components/CartDrawer";
 import NotificationPrompt from "@/components/NotificationPrompt";
 import AuthPrompt from "@/components/AuthPrompt";
 import PaymentModal from "@/components/PaymentModal";
+import QRScannerModal from "@/components/QRScannerModal";
+import InstallAppPrompt from "@/components/InstallAppPrompt";
 import {useAuth} from "@/contexts/AuthContext";
 import type {CartItem,MenuItem} from "@/types";
 interface Category{id:string;name:string;display_order:number} interface StoreInfo{id:string;name:string;address:string;logo?:string}
 
 export default function MenuPageContent(){
-  const params=useSearchParams(),storeId=params.get("store")??"",tableNum=params.get("table")??""; const {isAuthenticated}=useAuth();
+  const params=useSearchParams(),scannedStoreId=params.get("store")??"",tableNum=params.get("table")??""; const {isAuthenticated}=useAuth();
+  const [activeStoreId,setActiveStoreId]=useState(scannedStoreId),[storeOptions,setStoreOptions]=useState<StoreInfo[]>([]); const storeId=scannedStoreId||activeStoreId;
   const [categories,setCategories]=useState<Category[]>([]),[items,setItems]=useState<MenuItem[]>([]),[store,setStore]=useState<StoreInfo|null>(null),[cart,setCart]=useState<CartItem[]>([]);
   const [category,setCategory]=useState("all"),[query,setQuery]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState("");
-  const [cartOpen,setCartOpen]=useState(false),[paymentOpen,setPaymentOpen]=useState(false),[notificationOpen,setNotificationOpen]=useState(false),[authOpen,setAuthOpen]=useState(false);
+  const [cartOpen,setCartOpen]=useState(false),[paymentOpen,setPaymentOpen]=useState(false),[scannerOpen,setScannerOpen]=useState(false),[notificationOpen,setNotificationOpen]=useState(false),[authOpen,setAuthOpen]=useState(false);
   const searchRef=useRef<HTMLInputElement>(null),promptShown=useRef(false);
-  const load=useCallback(async()=>{if(!storeId){setError("Toko tidak ditemukan. Silakan scan ulang QR meja.");setLoading(false);return;}setLoading(true);setError("");try{const [s,c,m]=await Promise.all([fetch(`/api/stores/${storeId}`),fetch(`/api/menu/categories?storeId=${storeId}`),fetch(`/api/menu/items?storeId=${storeId}`)]);if(!s.ok||!c.ok||!m.ok)throw new Error();setStore((await s.json()).data);setCategories((await c.json()).data??[]);setItems((await m.json()).data??[]);}catch{setError("Menu belum berhasil dimuat. Periksa koneksi lalu coba lagi.");}finally{setLoading(false)}},[storeId]);
+  const load=useCallback(async()=>{setLoading(true);setError("");try{let resolved=storeId;const storesResponse=await fetch("/api/stores");const storesResult=await storesResponse.json();const available:StoreInfo[]=storesResult.data??[];setStoreOptions(available);if(!resolved){resolved=available[0]?.id||"";if(resolved)setActiveStoreId(resolved);}if(!resolved)throw new Error("Belum ada toko aktif");const [s,c,m]=await Promise.all([fetch(`/api/stores/${resolved}`),fetch(`/api/menu/categories?storeId=${resolved}`),fetch(`/api/menu/items?storeId=${resolved}`)]);if(!s.ok||!c.ok||!m.ok)throw new Error();setStore((await s.json()).data);setCategories((await c.json()).data??[]);setItems((await m.json()).data??[]);}catch(error){setError(error instanceof Error&&error.message==="Belum ada toko aktif"?error.message:"Menu belum berhasil dimuat. Periksa koneksi lalu coba lagi.");}finally{setLoading(false)}},[storeId]);
   useEffect(()=>{load()},[load]);
   useEffect(()=>{if(!localStorage.getItem("selforder_session_id"))localStorage.setItem("selforder_session_id",crypto.randomUUID());const dark=localStorage.getItem("selforder_theme")==="dark";document.documentElement.classList.toggle("dark",dark)},[]);
-  useEffect(()=>{if(isAuthenticated||promptShown.current)return;const timer=setTimeout(()=>{setNotificationOpen(true);promptShown.current=true},1800);return()=>clearTimeout(timer)},[isAuthenticated]);
+  useEffect(()=>{if(isAuthenticated||promptShown.current||localStorage.getItem("notification_prompt_seen")==="1")return;const timer=setTimeout(()=>{setNotificationOpen(true);promptShown.current=true},1800);return()=>clearTimeout(timer)},[isAuthenticated]);
   const add=(item:MenuItem)=>{if(!item.is_available)return;setCart(prev=>{const found=prev.find(x=>x.id===item.id);return found?prev.map(x=>x.id===item.id?{...x,quantity:x.quantity+1}:x):[...prev,{...item,quantity:1}]});toast.success(`${item.name} masuk keranjang`,{duration:1200})};
   const subtract=(id:string)=>setCart(prev=>prev.flatMap(x=>x.id===id?(x.quantity>1?[{...x,quantity:x.quantity-1}]:[]):[x]));
   const cartCount=cart.reduce((n,x)=>n+x.quantity,0),cartTotal=cart.reduce((n,x)=>n+Number(x.price)*x.quantity,0);
@@ -31,14 +34,16 @@ export default function MenuPageContent(){
   if(loading)return <div className="grid min-h-screen place-items-center bg-[#f5f8ff] dark:bg-[#020817]"><div className="text-center"><div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600"/><p className="mt-4 text-sm font-semibold text-slate-500">Menyiapkan menu terbaik...</p></div></div>;
   if(error)return <div className="grid min-h-screen place-items-center bg-[#f5f8ff] p-6 text-center"><div><AlertCircle className="mx-auto h-14 w-14 text-blue-600"/><h1 className="mt-4 text-xl font-black text-navy-950">Menu tidak dapat dibuka</h1><p className="mt-2 text-slate-500">{error}</p><button onClick={load} className="mt-6 rounded-2xl bg-blue-600 px-6 py-3 font-bold text-white">Coba lagi</button></div></div>;
   return <main className="min-h-screen bg-[#f5f8ff] pb-36 text-navy-950 transition-colors dark:bg-[#020817] dark:text-white"><Toaster position="top-center"/>
-    {notificationOpen&&!isAuthenticated&&<NotificationPrompt onComplete={()=>{setNotificationOpen(false);setAuthOpen(true)}}/>}{authOpen&&!isAuthenticated&&<AuthPrompt onComplete={()=>setAuthOpen(false)}/>} 
-    <CartDrawer isOpen={cartOpen} onClose={()=>setCartOpen(false)} items={cart} onCheckout={()=>{setCartOpen(false);setPaymentOpen(true)}} onRemoveItem={id=>setCart(x=>x.filter(i=>i.id!==id))} onUpdateQuantity={(id,d)=>d<0?subtract(id):items.find(x=>x.id===id)&&add(items.find(x=>x.id===id)!)} />
+    <InstallAppPrompt/>
+    {notificationOpen&&!isAuthenticated&&<NotificationPrompt storeId={storeId} onComplete={()=>{setNotificationOpen(false);setAuthOpen(true)}}/>}{authOpen&&!isAuthenticated&&<AuthPrompt onComplete={()=>setAuthOpen(false)}/>} 
+    <CartDrawer isOpen={cartOpen} onClose={()=>setCartOpen(false)} items={cart} onCheckout={()=>{setCartOpen(false);if(!tableNum){toast.error("Scan QR meja sebelum checkout");setScannerOpen(true)}else setPaymentOpen(true)}} onRemoveItem={id=>setCart(x=>x.filter(i=>i.id!==id))} onUpdateQuantity={(id,d)=>d<0?subtract(id):items.find(x=>x.id===id)&&add(items.find(x=>x.id===id)!)} />
+    <QRScannerModal open={scannerOpen} onClose={()=>setScannerOpen(false)}/>
     {paymentOpen&&<PaymentModal isOpen={paymentOpen} onClose={()=>setPaymentOpen(false)} storeId={storeId} tableNumber={tableNum} cartItems={cart} onPaymentComplete={()=>{setCart([]);setPaymentOpen(false)}}/>}
 
     <header className="relative overflow-hidden bg-[#06152e] px-4 pb-16 pt-[max(1.25rem,env(safe-area-inset-top))] text-white sm:px-6">
       <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl"/><div className="pointer-events-none absolute -bottom-28 -left-20 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl"/>
       <div className="relative mx-auto max-w-6xl"><div className="flex items-center justify-between"><div className="flex min-w-0 items-center gap-3"><div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10 ring-1 ring-white/15">{store?.logo?<img src={store.logo} alt="" className="h-full w-full object-cover"/>:<StoreIcon className="h-6 w-6 text-blue-300"/>}</div><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[.22em] text-blue-300">Selamat datang</p><h1 className="truncate text-xl font-black sm:text-2xl">{store?.name||"SelfOrder"}</h1></div></div>{tableNum&&<div className="rounded-2xl bg-white/10 px-3 py-2 text-center ring-1 ring-white/15"><span className="block text-[9px] uppercase tracking-widest text-blue-200">Meja</span><b className="text-xl">{tableNum}</b></div>}</div>
-        <div className="mt-7"><h2 className="max-w-sm text-3xl font-black leading-tight sm:text-4xl">Mau makan apa hari ini?</h2><p className="mt-2 flex items-center gap-1.5 text-xs text-blue-200"><MapPin className="h-3.5 w-3.5"/>{store?.address||"Pesan langsung tanpa antre"}</p></div>
+        <div className="mt-7"><h2 className="max-w-sm text-3xl font-black leading-tight sm:text-4xl">Mau makan apa hari ini?</h2><p className="mt-2 flex items-center gap-1.5 text-xs text-blue-200"><MapPin className="h-3.5 w-3.5"/>{store?.address||"Lihat menu dulu, scan meja saat ingin memesan"}</p>{!scannedStoreId&&storeOptions.length>1&&<select value={activeStoreId} onChange={e=>{setCart([]);setActiveStoreId(e.target.value)}} className="mt-4 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm text-white outline-none">{storeOptions.map(option=><option className="text-navy-950" key={option.id} value={option.id}>{option.name}</option>)}</select>}</div>
         <div className="relative mt-6"><Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-blue-300"/><input ref={searchRef} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Cari makanan atau minuman..." className="h-14 w-full rounded-2xl border border-white/15 bg-white/10 pl-12 pr-12 text-sm text-white outline-none backdrop-blur placeholder:text-blue-200/70 focus:border-blue-400 focus:bg-white/15"/><SlidersHorizontal className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-blue-300"/></div>
       </div>
     </header>
@@ -53,6 +58,6 @@ export default function MenuPageContent(){
       </section>
     </div>
     <AnimatePresence>{cartCount>0&&<motion.button initial={{y:80,opacity:0}} animate={{y:0,opacity:1}} exit={{y:80,opacity:0}} onClick={()=>setCartOpen(true)} className="fixed bottom-[5.25rem] left-4 right-4 z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-blue-600 p-3.5 text-white shadow-2xl shadow-blue-950/35"><span className="grid h-10 w-10 place-items-center rounded-xl bg-white/15 font-black">{cartCount}</span><span className="flex-1 text-left"><b className="block text-sm">Lihat keranjang</b><small className="text-blue-100">Siap untuk checkout</small></span><b>Rp {cartTotal.toLocaleString("id-ID")}</b></motion.button>}</AnimatePresence>
-    <FloatingNav cartCount={cartCount} onCartClick={()=>setCartOpen(true)} onSearchClick={()=>{searchRef.current?.focus();searchRef.current?.scrollIntoView({behavior:"smooth",block:"center"})}} onProfileClick={()=>setAuthOpen(true)}/>
+    <FloatingNav cartCount={cartCount} onCartClick={()=>setCartOpen(true)} onScanClick={()=>setScannerOpen(true)} onSearchClick={()=>{searchRef.current?.focus();searchRef.current?.scrollIntoView({behavior:"smooth",block:"center"})}} onProfileClick={()=>setAuthOpen(true)}/>
   </main>
 }

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { getAuthUser, isStaff, isOwnerOrAdmin, hasStoreAccess } from "@/lib/auth";
+import { notifyOrderStatus } from "@/lib/push-notifications";
 
 type Params = { params: Promise<{ orderId: string }> };
 
@@ -104,6 +105,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
       .single();
 
     if (error) throw error;
+
+    if (status) await notifyOrderStatus(orderId, status);
 
     return NextResponse.json({ data: order }, { status: 200 });
   } catch (error: unknown) {

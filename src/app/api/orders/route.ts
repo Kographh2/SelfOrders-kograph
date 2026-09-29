@@ -70,6 +70,9 @@ export async function POST(request: NextRequest) {
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "Order harus memiliki minimal 1 item" }, { status: 400 });
     }
+    if (!tableId && !tableNumber) {
+      return NextResponse.json({ error: "Scan QR meja yang valid sebelum membuat pesanan" }, { status: 400 });
+    }
 
     for (const item of items) {
       if (!item.menu_item_id || typeof item.quantity !== "number" || item.quantity < 1) {
@@ -109,14 +112,16 @@ export async function POST(request: NextRequest) {
             .single();
 
           if (tableErr || !tableRow) {
-            console.warn(`[orders] Table number ${tableNum} not found in store ${storeId}`);
-            // Tetap lanjut tanpa table_id daripada gagal total
-            resolvedTableId = null;
+            return NextResponse.json({ error: `Meja ${tableNum} tidak aktif atau tidak terdaftar di toko ini` }, { status: 400 });
           } else {
             resolvedTableId = tableRow.id;
           }
         }
       }
+    }
+
+    if (!resolvedTableId) {
+      return NextResponse.json({ error: "QR meja tidak valid. Silakan scan ulang QR di meja." }, { status: 400 });
     }
 
     // ── Buat order via atomic DB function ─────────────────────────

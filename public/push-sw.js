@@ -1,8 +1,8 @@
 self.addEventListener('push', (event) => {
   if (!event.data) return;
-
   try {
-    const data = event.data.json();
+    let data;
+    try { data = event.data.json(); } catch { data = { title: 'SelfOrder', body: event.data.text() }; }
     const options = {
       body: data.body || 'Ada pesanan baru!',
       icon: '/icon-192x192.png',
@@ -32,6 +32,7 @@ self.addEventListener('notificationclick', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
+          if ('navigate' in client) client.navigate(url);
           return client.focus();
         }
       }
