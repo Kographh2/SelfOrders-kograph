@@ -1,0 +1,105 @@
+import { type NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase-server";
+import { getAuthUser, isOwnerOrAdmin, hasStoreAccess } from "@/lib/auth";
+
+type Params = { params: Promise<{ itemId: string }> };
+
+export async function GET(_request: NextRequest, { params }: Params) {
+    const { itemId } = await params;
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("menu_items")
+      .select("*")
+      .eq("id", itemId)
+      .single();
+
+    if (error || !data) return NextResponse.json({ error: "Item not found" }, { status: 404 });
+
+    return NextResponse.json({ data }, { status: 200 });
+  } catch {
+    return NextResponse.json({ error: "Failed to fetch item" }, { status: 500 });
+  }
+}
+
+export async function PUT(request: NextRequest, { params }: Params) {
+    const { itemId } = await params;
+  try {
+    const user = await getAuthUser(request);
+    if (!isOwnerOrAdmin(user)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    const { data: existing } = await supabaseAdmin
+      .from("menu_items")
+      .select("store_id")
+      .eq("id", itemId)
+      .single();
+
+    if (!existing) return NextResponse.json({ error: "Item not found" }, { status: 404 });
+    if (!hasStoreAccess(user, existing.store_id)) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { name, description, price, image, isAvailable, isFeatured, displayOrder, categoryId } = body;
+
+    if (price !== undefined && (typeof price !== "number" || price < 0)) {
+      return NextResponse.json({ error: "Invalid price" }, { status: 400 });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("menu_items")
+      .update({
+        ...(name !== undefined && { name: name.trim() }),
+        ...(description !== undefined && { description: description?.trim() ?? null }),
+        ...(price !== undefined && { price }),
+        ...(image !== undefined && { image }),
+        ...(isAvailable !== undefined && { is_available: isAvailable }),
+        ...(isFeatured !== undefined && { is_featured: isFeatured }),
+        ...(displayOrder !== undefined && { display_order: displayOrder }),
+        ...(categoryId !== undefined && { category_id: categoryId }),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", itemId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({ data }, { status: 200 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: "Failed to update item" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: Params) {
+    const { itemId } = await params;
+  try {
+    const user = await getAuthUser(request);
+    if (!isOwnerOrAdmin(user)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    const { data: existing } = await supabaseAdmin
+      .from("menu_items")
+      .select("store_id")
+      .eq("id", itemId)
+      .single();
+
+    if (!existing) return NextResponse.json({ error: "Item not found" }, { status: 404 });
+    if (!hasStoreAccess(user, existing.store_id)) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
+    const { error } = await supabaseAdmin
+      .from("menu_items")
+      .delete()
+      .eq("id", itemId);
+
+    if (error) throw error;
+
+    return NextResponse.json({ message: "Item deleted" }, { status: 200 });
+  } catch {
+    return NextResponse.json({ error: "Failed to delete item" }, { status: 500 });
+  }
+}
