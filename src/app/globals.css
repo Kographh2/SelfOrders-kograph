@@ -20,12 +20,12 @@
     --color-navy-900:  #0F1E2B;
     --color-navy-950:  #080F16;
 
-    --color-bone-50:   #FAF8F5;
-    --color-bone-100:  #F3EFE8;
-    --color-bone-200:  #E8E0D5;
+    --color-bone-50:   #FFFFFF;
+    --color-bone-100:  #F5F8FF;
+    --color-bone-200:  #E6EEFF;
 
-    --color-gold:      #D4A843;
-    --color-gold-50:   #FBF5E6;
+    --color-gold:      #2563EB;
+    --color-gold-50:   #EFF6FF;
 
     scroll-behavior: smooth;
     -webkit-tap-highlight-color: transparent;
@@ -69,6 +69,10 @@
 }
 
 html.dark body { background: #020617; color: #f8fafc; }
+html.dark .bg-bone-50, html.dark .bg-white { background-color: #081426; }
+html.dark .bg-bone-100 { background-color: #0b1b32; }
+html.dark .text-navy-900, html.dark .text-navy-950, html.dark .text-navy-700 { color: #f8fafc; }
+html.dark .border-navy-100, html.dark .border-blue-100 { border-color: rgba(255,255,255,.1); }
 html.dark .profile-shell { background: linear-gradient(145deg,#020617,#07172f); color: white; }
 html.dark .profile-shell section { background: #081426; color: white; }
 html.dark .profile-shell .text-navy-500 { color: #94a3b8; }

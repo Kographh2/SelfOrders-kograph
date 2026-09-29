@@ -1,358 +1,58 @@
 "use client";
-
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useCallback,useEffect,useMemo,useRef,useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  Search, Plus, Minus, Star, Clock,
-  ShoppingCart, AlertCircle, Sparkles, Tag,
-} from "lucide-react";
-import toast, { Toaster } from "react-hot-toast";
+import { AnimatePresence,motion } from "framer-motion";
+import { AlertCircle,ChevronRight,Clock3,MapPin,Minus,Plus,Search,ShoppingBag,SlidersHorizontal,Sparkles,Store as StoreIcon } from "lucide-react";
+import toast,{Toaster} from "react-hot-toast";
 import FloatingNav from "@/components/FloatingNav";
 import CartDrawer from "@/components/CartDrawer";
 import NotificationPrompt from "@/components/NotificationPrompt";
 import AuthPrompt from "@/components/AuthPrompt";
 import PaymentModal from "@/components/PaymentModal";
-import { TypingText } from "@/components/ui/Animations";
-import { useAuth } from "@/contexts/AuthContext";
-import type { MenuItem as MenuItemType, CartItem } from "@/types";
+import {useAuth} from "@/contexts/AuthContext";
+import type {CartItem,MenuItem} from "@/types";
+interface Category{id:string;name:string;display_order:number} interface StoreInfo{id:string;name:string;address:string;logo?:string}
 
-interface Category { id: string; name: string; display_order: number }
-interface StoreInfo { id: string; name: string; address: string; tax_rate?: number; service_charge_rate?: number }
+export default function MenuPageContent(){
+  const params=useSearchParams(),storeId=params.get("store")??"",tableNum=params.get("table")??""; const {isAuthenticated}=useAuth();
+  const [categories,setCategories]=useState<Category[]>([]),[items,setItems]=useState<MenuItem[]>([]),[store,setStore]=useState<StoreInfo|null>(null),[cart,setCart]=useState<CartItem[]>([]);
+  const [category,setCategory]=useState("all"),[query,setQuery]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState("");
+  const [cartOpen,setCartOpen]=useState(false),[paymentOpen,setPaymentOpen]=useState(false),[notificationOpen,setNotificationOpen]=useState(false),[authOpen,setAuthOpen]=useState(false);
+  const searchRef=useRef<HTMLInputElement>(null),promptShown=useRef(false);
+  const load=useCallback(async()=>{if(!storeId){setError("Toko tidak ditemukan. Silakan scan ulang QR meja.");setLoading(false);return;}setLoading(true);setError("");try{const [s,c,m]=await Promise.all([fetch(`/api/stores/${storeId}`),fetch(`/api/menu/categories?storeId=${storeId}`),fetch(`/api/menu/items?storeId=${storeId}`)]);if(!s.ok||!c.ok||!m.ok)throw new Error();setStore((await s.json()).data);setCategories((await c.json()).data??[]);setItems((await m.json()).data??[]);}catch{setError("Menu belum berhasil dimuat. Periksa koneksi lalu coba lagi.");}finally{setLoading(false)}},[storeId]);
+  useEffect(()=>{load()},[load]);
+  useEffect(()=>{if(!localStorage.getItem("selforder_session_id"))localStorage.setItem("selforder_session_id",crypto.randomUUID());const dark=localStorage.getItem("selforder_theme")==="dark";document.documentElement.classList.toggle("dark",dark)},[]);
+  useEffect(()=>{if(isAuthenticated||promptShown.current)return;const timer=setTimeout(()=>{setNotificationOpen(true);promptShown.current=true},1800);return()=>clearTimeout(timer)},[isAuthenticated]);
+  const add=(item:MenuItem)=>{if(!item.is_available)return;setCart(prev=>{const found=prev.find(x=>x.id===item.id);return found?prev.map(x=>x.id===item.id?{...x,quantity:x.quantity+1}:x):[...prev,{...item,quantity:1}]});toast.success(`${item.name} masuk keranjang`,{duration:1200})};
+  const subtract=(id:string)=>setCart(prev=>prev.flatMap(x=>x.id===id?(x.quantity>1?[{...x,quantity:x.quantity-1}]:[]):[x]));
+  const cartCount=cart.reduce((n,x)=>n+x.quantity,0),cartTotal=cart.reduce((n,x)=>n+Number(x.price)*x.quantity,0);
+  const filtered=useMemo(()=>items.filter(x=>(category==="all"||x.category_id===category)&&(`${x.name} ${x.description??""}`).toLowerCase().includes(query.toLowerCase())),[items,category,query]);
+  const featured=items.filter(x=>x.is_featured&&x.is_available).slice(0,5);
+  if(loading)return <div className="grid min-h-screen place-items-center bg-[#f5f8ff] dark:bg-[#020817]"><div className="text-center"><div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600"/><p className="mt-4 text-sm font-semibold text-slate-500">Menyiapkan menu terbaik...</p></div></div>;
+  if(error)return <div className="grid min-h-screen place-items-center bg-[#f5f8ff] p-6 text-center"><div><AlertCircle className="mx-auto h-14 w-14 text-blue-600"/><h1 className="mt-4 text-xl font-black text-navy-950">Menu tidak dapat dibuka</h1><p className="mt-2 text-slate-500">{error}</p><button onClick={load} className="mt-6 rounded-2xl bg-blue-600 px-6 py-3 font-bold text-white">Coba lagi</button></div></div>;
+  return <main className="min-h-screen bg-[#f5f8ff] pb-36 text-navy-950 transition-colors dark:bg-[#020817] dark:text-white"><Toaster position="top-center"/>
+    {notificationOpen&&!isAuthenticated&&<NotificationPrompt onComplete={()=>{setNotificationOpen(false);setAuthOpen(true)}}/>}{authOpen&&!isAuthenticated&&<AuthPrompt onComplete={()=>setAuthOpen(false)}/>} 
+    <CartDrawer isOpen={cartOpen} onClose={()=>setCartOpen(false)} items={cart} onCheckout={()=>{setCartOpen(false);setPaymentOpen(true)}} onRemoveItem={id=>setCart(x=>x.filter(i=>i.id!==id))} onUpdateQuantity={(id,d)=>d<0?subtract(id):items.find(x=>x.id===id)&&add(items.find(x=>x.id===id)!)} />
+    {paymentOpen&&<PaymentModal isOpen={paymentOpen} onClose={()=>setPaymentOpen(false)} storeId={storeId} tableNumber={tableNum} cartItems={cart} onPaymentComplete={()=>{setCart([]);setPaymentOpen(false)}}/>}
 
-export default function MenuPageContent() {
-  const params    = useSearchParams();
-  const tableNum  = params.get("table") ?? "";   // nomor meja dari QR, misal "2"
-  const storeId   = params.get("store") ?? "";
-
-  const { token, user, isAuthenticated } = useAuth();
-
-  const [showNotification, setShowNotification] = useState(false);
-  const [showAuth,         setShowAuth]          = useState(false);
-  const [cart,             setCart]              = useState<CartItem[]>([]);
-  const [showPayment,      setShowPayment]        = useState(false);
-  const [showCart,         setShowCart]           = useState(false);
-
-  const [categories,    setCategories]    = useState<Category[]>([]);
-  const [menuItems,     setMenuItems]     = useState<MenuItemType[]>([]);
-  const [storeInfo,     setStoreInfo]     = useState<StoreInfo | null>(null);
-  const [selectedCat,   setSelectedCat]   = useState<string>("all");
-  const [searchQuery,   setSearchQuery]   = useState("");
-  const [isLoading,     setIsLoading]     = useState(true);
-  const [error,         setError]          = useState<string | null>(null);
-
-  // Track if notification prompt was shown
-  const promptShownRef = useRef(false);
-
-  useEffect(() => {
-    if (!localStorage.getItem("selforder_session_id")) {
-      localStorage.setItem("selforder_session_id", crypto.randomUUID());
-    }
-  }, []);
-
-  const fetchMenuData = useCallback(async () => {
-    if (!storeId) { setError("Store ID tidak ditemukan. Scan ulang QR."); setIsLoading(false); return; }
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const [storeRes, catRes, menuRes] = await Promise.all([
-        fetch(`/api/stores/${storeId}`),
-        fetch(`/api/menu/categories?storeId=${storeId}`),
-        fetch(`/api/menu/items?storeId=${storeId}`),
-      ]);
-
-      if (storeRes.ok) setStoreInfo((await storeRes.json()).data);
-      if (catRes.ok)   setCategories((await catRes.json()).data ?? []);
-      if (menuRes.ok)  setMenuItems((await menuRes.json()).data ?? []);
-    } catch {
-      setError("Menu gagal dimuat. Periksa koneksi dan coba lagi.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [storeId]);
-
-  useEffect(() => { fetchMenuData(); }, [fetchMenuData]);
-
-  // Show notification prompt after 1.5s (only once, only if not authenticated)
-  useEffect(() => {
-    if (isAuthenticated || promptShownRef.current) return;
-    const t = setTimeout(() => { setShowNotification(true); promptShownRef.current = true; }, 1500);
-    return () => clearTimeout(t);
-  }, [isAuthenticated]);
-
-  const addToCart = (item: MenuItemType) => {
-    if (!item.is_available) { toast.error("Menu ini sedang tidak tersedia"); return; }
-    setCart(prev => {
-      const ex = prev.find(c => c.id === item.id);
-      if (ex) return prev.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c);
-      return [...prev, { ...item, quantity: 1 }];
-    });
-    toast.custom(() => (
-      <div className="flex items-center gap-2 px-4 py-2.5 bg-navy-900 text-bone-50 rounded-xl shadow-soft-lg text-sm font-medium">
-        <Star className="w-4 h-4 text-gold" />
-        <span>{item.name} ditambahkan</span>
+    <header className="relative overflow-hidden bg-[#06152e] px-4 pb-16 pt-[max(1.25rem,env(safe-area-inset-top))] text-white sm:px-6">
+      <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl"/><div className="pointer-events-none absolute -bottom-28 -left-20 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl"/>
+      <div className="relative mx-auto max-w-6xl"><div className="flex items-center justify-between"><div className="flex min-w-0 items-center gap-3"><div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10 ring-1 ring-white/15">{store?.logo?<img src={store.logo} alt="" className="h-full w-full object-cover"/>:<StoreIcon className="h-6 w-6 text-blue-300"/>}</div><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[.22em] text-blue-300">Selamat datang</p><h1 className="truncate text-xl font-black sm:text-2xl">{store?.name||"SelfOrder"}</h1></div></div>{tableNum&&<div className="rounded-2xl bg-white/10 px-3 py-2 text-center ring-1 ring-white/15"><span className="block text-[9px] uppercase tracking-widest text-blue-200">Meja</span><b className="text-xl">{tableNum}</b></div>}</div>
+        <div className="mt-7"><h2 className="max-w-sm text-3xl font-black leading-tight sm:text-4xl">Mau makan apa hari ini?</h2><p className="mt-2 flex items-center gap-1.5 text-xs text-blue-200"><MapPin className="h-3.5 w-3.5"/>{store?.address||"Pesan langsung tanpa antre"}</p></div>
+        <div className="relative mt-6"><Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-blue-300"/><input ref={searchRef} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Cari makanan atau minuman..." className="h-14 w-full rounded-2xl border border-white/15 bg-white/10 pl-12 pr-12 text-sm text-white outline-none backdrop-blur placeholder:text-blue-200/70 focus:border-blue-400 focus:bg-white/15"/><SlidersHorizontal className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-blue-300"/></div>
       </div>
-    ), { duration: 1400 });
-  };
+    </header>
 
-  const removeFromCart = (itemId: string) => {
-    setCart(prev => {
-      const ex = prev.find(c => c.id === itemId);
-      if (ex && ex.quantity > 1) return prev.map(c => c.id === itemId ? { ...c, quantity: c.quantity - 1 } : c);
-      return prev.filter(c => c.id !== itemId);
-    });
-  };
+    <div className="relative mx-auto -mt-8 max-w-6xl">
+      {featured.length>0&&!query&&<section className="px-4 sm:px-6"><div className="rounded-[1.75rem] bg-blue-600 p-5 text-white shadow-xl shadow-blue-900/20"><div className="mb-4 flex items-center justify-between"><div><p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-blue-100"><Sparkles className="h-4 w-4"/>Pilihan populer</p><h3 className="mt-1 text-xl font-black">Favorit pelanggan</h3></div><ChevronRight className="h-6 w-6 text-blue-200"/></div><div className="flex snap-x gap-3 overflow-x-auto pb-1 scrollbar-hide">{featured.map(item=><button key={item.id} onClick={()=>add(item)} className="flex min-w-[245px] snap-start items-center gap-3 rounded-2xl bg-white p-3 text-left text-navy-950 shadow-sm"><div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-blue-50">{item.image?<img src={item.image} alt={item.name} className="h-full w-full object-cover"/>:<div className="grid h-full place-items-center"><ShoppingBag className="text-blue-300"/></div>}</div><div className="min-w-0"><b className="block truncate">{item.name}</b><span className="mt-1 block text-sm font-black text-blue-600">Rp {Number(item.price).toLocaleString("id-ID")}</span><span className="mt-2 inline-flex items-center gap-1 text-[10px] text-slate-400"><Clock3 className="h-3 w-3"/>10–15 menit</span></div></button>)}</div></div></section>}
 
-  const updateQuantity = (itemId: string, delta: number) => {
-    if (delta < 0) removeFromCart(itemId);
-    else { const item = menuItems.find(m => m.id === itemId); if (item) addToCart(item); }
-  };
+      <nav className="sticky top-0 z-30 mt-5 border-y border-blue-100/70 bg-[#f5f8ff]/90 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-[#020817]/90 sm:px-6"><div className="flex gap-2 overflow-x-auto scrollbar-hide">{[{id:"all",name:"Semua"},...categories].map(cat=><button key={cat.id} onClick={()=>setCategory(cat.id)} className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-bold transition ${category===cat.id?"bg-blue-600 text-white shadow-lg shadow-blue-600/20":"bg-white text-slate-600 ring-1 ring-blue-100 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10"}`}>{cat.name}</button>)}</div></nav>
 
-  const cartCount  = cart.reduce((n, i) => n + i.quantity, 0);
-
-  const filtered = menuItems.filter(item => {
-    const matchCat    = selectedCat === "all" || item.category_id === selectedCat;
-    const matchSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchCat && matchSearch;
-  });
-
-  const featured = menuItems.filter(i => i.is_featured && i.is_available);
-
-  return (
-    <div className="min-h-screen bg-bone-50 pb-24">
-      <Toaster position="top-center" />
-
-      {/* Prompts */}
-      {showNotification && !isAuthenticated && (
-        <NotificationPrompt onComplete={() => { setShowNotification(false); setShowAuth(true); }} />
-      )}
-      {showAuth && !isAuthenticated && (
-        <AuthPrompt onComplete={() => setShowAuth(false)} />
-      )}
-
-      {/* Drawers */}
-      <CartDrawer
-        isOpen={showCart}
-        onClose={() => setShowCart(false)}
-        items={cart}
-        onCheckout={() => { setShowCart(false); setShowPayment(true); }}
-        onRemoveItem={id => setCart(prev => prev.filter(c => c.id !== id))}
-        onUpdateQuantity={updateQuantity}
-      />
-
-      {showPayment && storeId && (
-        <PaymentModal
-          isOpen={showPayment}
-          onClose={() => setShowPayment(false)}
-          storeId={storeId}
-          tableNumber={tableNum}   // ← kirim nomor meja, bukan UUID
-          cartItems={cart}
-          onOrderCreated={(orderId, orderNumber) => {
-            console.log("Order created:", orderId, "#" + orderNumber);
-          }}
-          onPaymentComplete={() => {
-            setCart([]);
-            setShowPayment(false);
-          }}
-        />
-      )}
-
-      {/* Loading */}
-      <AnimatePresence mode="wait">
-        {isLoading ? (
-          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="min-h-screen flex items-center justify-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-10 h-10 border-[3px] border-navy-200 border-t-gold rounded-full animate-spin" />
-              <p className="text-navy-500 text-sm">Memuat menu...</p>
-            </div>
-          </motion.div>
-        ) : error ? (
-          <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center">
-            <AlertCircle className="w-12 h-12 text-red-400" />
-            <p className="text-navy-700 font-medium">{error}</p>
-            <motion.button whileTap={{ scale: 0.95 }} onClick={fetchMenuData} className="btn-primary">
-              Coba Lagi
-            </motion.button>
-          </motion.div>
-        ) : (
-          <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-
-            {/* Header */}
-            <header className="relative bg-navy-900 text-bone-50 px-4 pt-6 pb-8"
-              style={{ paddingTop: "max(1.5rem, env(safe-area-inset-top))" }}>
-              <div className="mb-5">
-                <TypingText text={storeInfo?.name ?? "Restaurant"} className="text-2xl font-display font-bold" />
-                {tableNum && (
-                  <motion.p initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.5 }}
-                    className="text-navy-300 mt-1 text-sm flex items-center gap-1.5">
-                    🍽️ Meja {tableNum}
-                    {storeInfo?.address && <><span className="opacity-40 mx-1">·</span>{storeInfo.address}</>}
-                  </motion.p>
-                )}
-              </div>
-
-              {/* Search */}
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-                className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-navy-400 pointer-events-none" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Cari menu favoritmu..."
-                  className="w-full pl-12 pr-4 py-3.5 bg-navy-800/60 text-bone-50 rounded-2xl placeholder-navy-400 focus:outline-none focus:ring-2 focus:ring-gold/40 border border-navy-700"
-                />
-              </motion.div>
-            </header>
-
-            {/* Featured */}
-            {featured.length > 0 && !searchQuery && (
-              <section className="px-4 pt-5 pb-2">
-                <div className="flex items-center gap-2 mb-4">
-                  <Sparkles className="w-5 h-5 text-gold" />
-                  <h3 className="text-base font-display font-bold text-navy-900">Rekomendasi</h3>
-                </div>
-                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                  {featured.slice(0, 6).map(item => (
-                    <motion.button key={item.id} whileTap={{ scale: 0.96 }} onClick={() => addToCart(item)}
-                      className="min-w-[160px] bg-bone-50 border border-navy-100 rounded-2xl shadow-soft overflow-hidden flex-shrink-0 text-left">
-                      <div className="aspect-[4/3] bg-navy-50 flex items-center justify-center overflow-hidden relative">
-                        {item.image
-                          ? <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                          : <span className="text-4xl">🍽️</span>}
-                        <div className="absolute top-2 right-2 bg-gold/90 text-navy-950 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                          Favorit
-                        </div>
-                      </div>
-                      <div className="p-3">
-                        <p className="font-semibold text-navy-900 text-sm truncate">{item.name}</p>
-                        <p className="text-gold font-bold text-sm mt-0.5">
-                          Rp {item.price.toLocaleString("id-ID")}
-                        </p>
-                      </div>
-                    </motion.button>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* Category tabs */}
-            <section className="px-4 py-3">
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {[{ id: "all", name: "Semua" }, ...categories].map(cat => (
-                  <motion.button key={cat.id} whileTap={{ scale: 0.94 }}
-                    onClick={() => setSelectedCat(cat.id)}
-                    className={`px-4 py-2 rounded-xl whitespace-nowrap font-medium text-sm transition-all ${
-                      selectedCat === cat.id
-                        ? "bg-navy-900 text-bone-50 shadow-soft"
-                        : "bg-bone-100 text-navy-500 border border-navy-100 hover:bg-navy-50"
-                    }`}>
-                    {cat.name}
-                  </motion.button>
-                ))}
-              </div>
-            </section>
-
-            {/* Menu items */}
-            <section className="px-4 space-y-3 pb-6">
-              {filtered.length === 0 ? (
-                <div className="text-center py-16">
-                  <Tag className="w-10 h-10 mx-auto mb-3 text-navy-300" />
-                  <p className="font-medium text-navy-600">Menu tidak ditemukan</p>
-                  <p className="text-sm text-navy-400 mt-1">Coba kata kunci lain</p>
-                </div>
-              ) : (
-                filtered.map((item, i) => {
-                  const inCart = cart.find(c => c.id === item.id);
-                  return (
-                    <motion.div key={item.id}
-                      initial={{ opacity: 0, y: 16 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: Math.min(i * 0.04, 0.4) }}
-                      className={`bg-bone-50 border border-navy-100 rounded-2xl shadow-soft overflow-hidden ${!item.is_available ? "opacity-60" : ""}`}>
-                      <div className="flex gap-3 p-4">
-                        {/* Image */}
-                        <div className="w-24 h-24 bg-navy-50 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden relative">
-                          {item.image
-                            ? <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                            : <span className="text-4xl">🍽️</span>}
-                          {!item.is_available && (
-                            <div className="absolute inset-0 bg-navy-900/60 flex items-center justify-center rounded-xl">
-                              <span className="text-bone-50 text-[10px] font-bold bg-red-600 px-2 py-0.5 rounded-full">Habis</span>
-                            </div>
-                          )}
-                          {item.is_featured && item.is_available && (
-                            <div className="absolute top-1 right-1 bg-gold text-navy-950 text-[9px] font-bold w-5 h-5 rounded-full flex items-center justify-center">★</div>
-                          )}
-                        </div>
-
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-navy-900">{item.name}</h3>
-                          {item.description && (
-                            <p className="text-xs text-navy-500 line-clamp-2 mt-0.5">{item.description}</p>
-                          )}
-                          <div className="flex items-center gap-2 text-[11px] text-navy-400 mt-1.5">
-                            <Clock className="w-3 h-3" /><span>10-15 mnt</span>
-                          </div>
-
-                          <div className="flex items-center justify-between mt-3">
-                            <span className="text-base font-bold text-navy-900">
-                              Rp {item.price.toLocaleString("id-ID")}
-                            </span>
-
-                            {item.is_available ? (
-                              inCart ? (
-                                <div className="flex items-center gap-2">
-                                  <motion.button whileTap={{ scale: 0.9 }}
-                                    onClick={() => removeFromCart(item.id)}
-                                    className="w-8 h-8 bg-navy-100 text-navy-700 rounded-xl flex items-center justify-center hover:bg-navy-200 transition-colors"
-                                    aria-label="Kurangi">
-                                    <Minus className="w-4 h-4" />
-                                  </motion.button>
-                                  <span className="w-6 text-center text-sm font-bold text-navy-900">
-                                    {inCart.quantity}
-                                  </span>
-                                  <motion.button whileTap={{ scale: 0.9 }}
-                                    onClick={() => addToCart(item)}
-                                    className="w-8 h-8 bg-navy-900 text-bone-50 rounded-xl flex items-center justify-center hover:bg-navy-800 transition-colors shadow-soft"
-                                    aria-label="Tambah">
-                                    <Plus className="w-4 h-4" />
-                                  </motion.button>
-                                </div>
-                              ) : (
-                                <motion.button whileTap={{ scale: 0.9 }}
-                                  onClick={() => addToCart(item)}
-                                  className="w-10 h-10 bg-navy-900 text-bone-50 rounded-xl flex items-center justify-center hover:bg-navy-800 transition-colors shadow-soft"
-                                  aria-label="Tambah ke keranjang">
-                                  <Plus className="w-5 h-5" />
-                                </motion.button>
-                              )
-                            ) : (
-                              <span className="text-xs font-medium text-red-500 bg-red-50 px-3 py-1.5 rounded-xl">Habis</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })
-              )}
-            </section>
-
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <FloatingNav
-        cartCount={cartCount}
-        onCartClick={() => setShowCart(true)}
-        onProfileClick={() => setShowAuth(true)}
-      />
+      <section className="px-4 py-6 sm:px-6"><div className="mb-4 flex items-end justify-between"><div><p className="text-xs font-bold uppercase tracking-[.2em] text-blue-600">Jelajahi menu</p><h3 className="mt-1 text-2xl font-black">{category==="all"?"Semua pilihan":categories.find(x=>x.id===category)?.name}</h3></div><span className="text-xs font-semibold text-slate-400">{filtered.length} menu</span></div>
+        {filtered.length===0?<div className="rounded-[2rem] border border-dashed border-blue-200 bg-white p-12 text-center dark:bg-white/5"><Search className="mx-auto h-10 w-10 text-blue-300"/><b className="mt-3 block">Menu tidak ditemukan</b><p className="mt-1 text-sm text-slate-400">Coba kata kunci atau kategori lain.</p></div>:<div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{filtered.map((item,index)=>{const selected=cart.find(x=>x.id===item.id);return <motion.article key={item.id} initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:Math.min(index*.025,.25)}} className={`group overflow-hidden rounded-[1.35rem] bg-white shadow-[0_8px_30px_rgba(15,39,80,.08)] ring-1 ring-blue-100/70 dark:bg-[#09162b] dark:ring-white/10 ${!item.is_available?"opacity-60":""}`}><div className="relative aspect-[1/1] overflow-hidden bg-blue-50 dark:bg-navy-900">{item.image?<img src={item.image} alt={item.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105"/>:<div className="grid h-full place-items-center"><ShoppingBag className="h-9 w-9 text-blue-200"/></div>}{item.is_featured&&<span className="absolute left-2 top-2 rounded-full bg-blue-600 px-2 py-1 text-[9px] font-extrabold text-white shadow">POPULER</span>}{!item.is_available&&<div className="absolute inset-0 grid place-items-center bg-navy-950/55"><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-navy-950">Habis</span></div>}</div><div className="p-3"><h4 className="line-clamp-1 text-sm font-extrabold">{item.name}</h4><p className="mt-1 line-clamp-2 min-h-8 text-[11px] leading-4 text-slate-400">{item.description||"Dibuat segar khusus untuk Anda"}</p><div className="mt-3 flex items-end justify-between gap-1"><span className="text-sm font-black text-blue-600">Rp {Number(item.price).toLocaleString("id-ID")}</span>{item.is_available&&(selected?<div className="flex items-center rounded-xl bg-blue-50 p-1 dark:bg-white/10"><button onClick={()=>subtract(item.id)} className="grid h-7 w-7 place-items-center text-blue-700"><Minus className="h-3.5 w-3.5"/></button><b className="w-5 text-center text-xs">{selected.quantity}</b><button onClick={()=>add(item)} className="grid h-7 w-7 place-items-center rounded-lg bg-blue-600 text-white"><Plus className="h-3.5 w-3.5"/></button></div>:<button onClick={()=>add(item)} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/25"><Plus className="h-5 w-5"/></button>)}</div></div></motion.article>})}</div>}
+      </section>
     </div>
-  );
+    <AnimatePresence>{cartCount>0&&<motion.button initial={{y:80,opacity:0}} animate={{y:0,opacity:1}} exit={{y:80,opacity:0}} onClick={()=>setCartOpen(true)} className="fixed bottom-[5.25rem] left-4 right-4 z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-blue-600 p-3.5 text-white shadow-2xl shadow-blue-950/35"><span className="grid h-10 w-10 place-items-center rounded-xl bg-white/15 font-black">{cartCount}</span><span className="flex-1 text-left"><b className="block text-sm">Lihat keranjang</b><small className="text-blue-100">Siap untuk checkout</small></span><b>Rp {cartTotal.toLocaleString("id-ID")}</b></motion.button>}</AnimatePresence>
+    <FloatingNav cartCount={cartCount} onCartClick={()=>setCartOpen(true)} onSearchClick={()=>{searchRef.current?.focus();searchRef.current?.scrollIntoView({behavior:"smooth",block:"center"})}} onProfileClick={()=>setAuthOpen(true)}/>
+  </main>
 }

@@ -49,13 +49,13 @@ export default function CartDrawer({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "tween", duration: 0.28 }}
-            className="bg-bone-50 rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md mx-auto max-h-[88vh] flex flex-col"
+            className="mx-auto flex max-h-[92vh] w-full max-w-md flex-col rounded-t-[2rem] bg-white shadow-2xl dark:bg-[#081426] sm:rounded-[2rem]"
           >
             {/* Header */}
             <div className="px-5 py-4 border-b border-navy-100 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-navy-900 rounded-xl flex items-center justify-center">
-                  <ShoppingCart className="w-5 h-5 text-bone-50" />
+                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
+                  <ShoppingCart className="w-5 h-5 text-white" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-navy-900">Keranjang</h3>
@@ -87,7 +87,7 @@ export default function CartDrawer({
                     initial={{ opacity: 0, x: -12 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 12 }}
-                    className="flex gap-3 bg-bone-100 rounded-2xl p-3 border border-navy-100"
+                    className="flex gap-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-3 dark:border-white/10 dark:bg-white/5"
                   >
                     <div className="w-14 h-14 bg-navy-100 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden">
                       {item.image ? (
@@ -137,7 +137,7 @@ export default function CartDrawer({
                           </span>
                           <button
                             onClick={() => onUpdateQuantity(item.id, 1)}
-                            className="w-6 h-6 bg-navy-900 text-bone-50 rounded-lg flex items-center justify-center text-sm font-bold hover:bg-navy-800 transition-colors"
+                            className="w-7 h-7 bg-blue-600 text-white rounded-lg flex items-center justify-center text-sm font-bold hover:bg-blue-700 transition-colors"
                           >
                             +
                           </button>
@@ -161,7 +161,7 @@ export default function CartDrawer({
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={handleCheckout}
-                  className="w-full bg-navy-900 text-bone-50 py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-navy-800 active:bg-navy-950 transition-colors shadow-soft"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-4 font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700"
                 >
                   <ShoppingCart className="w-5 h-5" />
                   <span>Lanjut ke Pembayaran</span>

@@ -19,8 +19,9 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="id">
+    <html lang="id" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem('selforder_theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}` }} />
         {/* Google Fonts loaded via link for better network resilience */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

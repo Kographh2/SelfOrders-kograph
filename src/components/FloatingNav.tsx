@@ -10,12 +10,14 @@ interface FloatingNavProps {
   cartCount?: number;
   onCartClick?: () => void;
   onProfileClick?: () => void;
+  onSearchClick?: () => void;
 }
 
 export default function FloatingNav({
   cartCount = 0,
   onCartClick,
   onProfileClick,
+  onSearchClick,
 }: FloatingNavProps) {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -50,7 +52,7 @@ export default function FloatingNav({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.96 }}
               transition={{ duration: 0.15 }}
-              className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 z-50 w-52 bg-bone-50 border border-navy-100 rounded-2xl shadow-soft-lg overflow-hidden"
+              className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] right-4 z-50 w-56 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-2xl dark:border-white/10 dark:bg-[#09162b]"
             >
               {mounted && isAuthenticated && user && (
                 <div className="p-3 border-b border-navy-100">
@@ -103,18 +105,18 @@ export default function FloatingNav({
         initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="fixed bottom-0 left-0 right-0 z-50 bg-bone-50/95 backdrop-blur-xl border-t border-navy-100"
+        className="fixed bottom-0 left-0 right-0 z-50 border-t border-blue-100 bg-white/95 backdrop-blur-xl dark:border-white/10 dark:bg-[#061124]/95"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
         <div className="flex items-center justify-around h-16 px-2 max-w-sm mx-auto">
           {/* Home */}
-          <button className="flex flex-col items-center gap-1 px-3 py-1.5 text-gold" aria-label="Menu">
+          <button className="flex flex-col items-center gap-1 px-3 py-1.5 text-blue-600" aria-label="Menu">
             <Home className="w-6 h-6" />
             <span className="text-[10px] font-medium">Menu</span>
           </button>
 
           {/* Search */}
-          <button className="flex flex-col items-center gap-1 px-3 py-1.5 text-navy-400" aria-label="Cari">
+          <button onClick={onSearchClick} className="flex flex-col items-center gap-1 px-3 py-1.5 text-slate-400 hover:text-blue-600" aria-label="Cari">
             <Search className="w-6 h-6" />
             <span className="text-[10px] font-medium">Cari</span>
           </button>
@@ -123,7 +125,7 @@ export default function FloatingNav({
           <motion.button
             whileTap={{ scale: 0.92 }}
             onClick={onCartClick}
-            className="relative flex flex-col items-center gap-1 px-3 py-1.5 text-navy-400"
+            className="relative flex flex-col items-center gap-1 px-3 py-1.5 text-slate-400 hover:text-blue-600"
             aria-label="Keranjang"
           >
             <ShoppingCart className="w-6 h-6" />
@@ -133,7 +135,7 @@ export default function FloatingNav({
                 key={cartCount}
                 initial={{ scale: 0.6 }}
                 animate={{ scale: 1 }}
-                className="absolute -top-0.5 right-0.5 bg-gold text-navy-950 text-[9px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1"
+                className="absolute -top-0.5 right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-blue-600 px-1 text-[9px] font-bold text-white"
               >
                 {cartCount > 99 ? "99+" : cartCount}
               </motion.span>
@@ -149,7 +151,7 @@ export default function FloatingNav({
             {/* Always render User icon on SSR, swap to avatar after mount */}
             {showUserAvatar ? (
               <div className="w-6 h-6 bg-navy-900 rounded-full flex items-center justify-center">
-                <span className="text-bone-50 text-[10px] font-bold">
+                <span className="text-white text-[10px] font-bold">
                   {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
                 </span>
               </div>

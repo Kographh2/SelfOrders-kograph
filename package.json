@@ -15,13 +15,13 @@
     "framer-motion": "^11.11.9",
     "jsbarcode": "^3.12.3",
     "jsonwebtoken": "^9.0.2",
-    "lucide-react": "^0.453.0",
+    "lucide-react": "1.48.0",
     "midtrans-client": "^1.4.2",
-    "next": "15.0.3",
+    "next": "15.5.26",
     "qrcode": "^1.5.4",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-hot-toast": "^2.4.1"
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-hot-toast": "2.6.1"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.7",
@@ -31,7 +31,7 @@
     "@types/react-dom": "^19",
     "autoprefixer": "^10.6.1",
     "eslint": "^8",
-    "eslint-config-next": "15.0.3",
+    "eslint-config-next": "15.5.26",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
