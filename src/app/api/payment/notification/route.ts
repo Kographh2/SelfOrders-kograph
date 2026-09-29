@@ -71,6 +71,21 @@ export async function POST(request: NextRequest) {
     const newPaymentStatus = mapPaymentStatus(txStatus, fraudStatus);
     const isPaid = newPaymentStatus === "paid";
 
+    // Wallet top-ups use their own Midtrans order namespace and ledger.
+    if (orderId.startsWith("TOPUP-")) {
+      const topupId = orderId.slice(6);
+      const { data: topup } = await supabaseAdmin.from("wallet_topups").select("id,amount,status").eq("id", topupId).eq("midtrans_order_id", orderId).single();
+      if (!topup) return NextResponse.json({ error: "Top up tidak ditemukan" }, { status: 404 });
+      if (Math.round(Number(grossAmount)) !== Math.round(Number(topup.amount))) return NextResponse.json({ error: "Nominal tidak cocok" }, { status: 400 });
+      if (isPaid) {
+        const { error } = await supabaseAdmin.rpc("wallet_add_topup", { p_topup_id: topupId });
+        if (error) throw error;
+      } else if (topup.status !== "paid") {
+        await supabaseAdmin.from("wallet_topups").update({ status: newPaymentStatus === "refunded" ? "failed" : newPaymentStatus, updated_at: new Date().toISOString() }).eq("id", topupId);
+      }
+      return NextResponse.json({ status: isPaid ? "topup_paid" : newPaymentStatus });
+    }
+
     // Update payment record
     await supabaseAdmin
       .from("payments")

@@ -30,6 +30,8 @@ export async function createSnapTransaction(params: {
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
+  finishUrl?: string;
+  enabledPayments?: string[];
 }) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   const transaction = await snap.createTransaction({
@@ -48,12 +50,12 @@ export async function createSnapTransaction(params: {
       email: params.customerEmail ?? "",
       phone: params.customerPhone ?? "",
     },
-    enabled_payments: [
+    enabled_payments: params.enabledPayments ?? [
       "credit_card", "bank_transfer", "echannel",
       "gopay", "shopeepay", "qris", "indomaret", "alfamart",
     ],
     callbacks: {
-      finish: appUrl ? `${appUrl}/orders/${params.orderId}/waiting` : undefined,
+      finish: params.finishUrl ?? (appUrl ? `${appUrl}/orders/${params.orderId}/waiting` : undefined),
     },
   });
   return { token: transaction.token, redirectUrl: transaction.redirect_url };

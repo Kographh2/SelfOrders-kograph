@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { BadgePercent, Banknote, CheckCircle, CreditCard, Loader2, ShieldCheck, X } from "lucide-react";
+import { BadgePercent, Banknote, CheckCircle, CreditCard, Loader2, ShieldCheck, WalletCards, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import type { CartItem, CheckoutItem, PromoClaim } from "@/types";
@@ -9,6 +9,7 @@ import type { CartItem, CheckoutItem, PromoClaim } from "@/types";
 interface Props { isOpen:boolean; onClose:()=>void; storeId:string; tableNumber?:string; cartItems:CartItem[]; onOrderCreated?:(id:string,no:number,total:number)=>void; onPaymentComplete:(method?:string)=>void; customerName?:string; customerPhone?:string; customerEmail?:string; notes?:string }
 const METHODS = [
   { id:"snap", name:"Midtrans Snap", description:"QRIS, e-wallet, transfer bank, atau kartu", Icon:CreditCard },
+  { id:"wallet", name:"Saldo SelfOrder", description:"Bayar instan dari saldo akun", Icon:WalletCards },
   { id:"cash", name:"Tunai di Kasir", description:"Tunjukkan barcode konfirmasi ke kasir", Icon:Banknote },
 ] as const;
 type Method = (typeof METHODS)[number]["id"];
@@ -42,6 +43,7 @@ export default function PaymentModal(props:Props) {
   const openWaiting=(id:string)=>window.location.assign(`/orders/${id}/waiting`);
   const pay=async()=>{
     if(!method){toast.error("Pilih metode pembayaran");return;}
+    if(method==="wallet"&&(!token||!user?.email)){toast.error("Login akun diperlukan untuk menggunakan saldo");return;}
     setProcessing(true);
     try{
       const order=await createOrder(); props.onOrderCreated?.(order.id,order.number,order.total);
@@ -49,6 +51,12 @@ export default function PaymentModal(props:Props) {
         const response=await fetch("/api/payment/cash",{method:"POST",headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify({orderId:order.id,sessionId:localStorage.getItem("selforder_session_id")})});
         const result=await response.json(); if(!response.ok) throw new Error(result.error||"Gagal membuat pembayaran tunai");
         props.onPaymentComplete("cash"); openWaiting(order.id); return;
+      }
+      if(method==="wallet"){
+        if(!token) throw new Error("Login diperlukan untuk menggunakan saldo");
+        const response=await fetch("/api/payment/wallet",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({orderId:order.id})});
+        const result=await response.json(); if(!response.ok) throw new Error(result.error||"Pembayaran saldo gagal");
+        props.onPaymentComplete("wallet"); openWaiting(order.id); return;
       }
       const response=await fetch("/api/payment/midtrans",{method:"POST",headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify({orderId:order.id,sessionId:localStorage.getItem("selforder_session_id")})});
       const result=await response.json(); if(!response.ok) throw new Error(result.error||"Gagal membuka Midtrans Snap");

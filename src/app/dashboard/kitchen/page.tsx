@@ -103,6 +103,12 @@ export default function KitchenPage() {
     }
   };
 
+  const stopCall = async (orderId: string) => {
+    const res = await fetch(`/api/orders/${orderId}/call`, { method: "PUT", headers: { "Content-Type": "application/json", ...getAuthHeaders(token) }, body: "{}" });
+    if (res.ok) { toast.success("Panggilan antrean dihentikan"); fetchOrders(); }
+    else toast.error("Gagal menghentikan panggilan");
+  };
+
   const displayed = orders.filter((o) => {
     if (o.payment_status !== "paid") return false;
     if (filter === "all") return ACTIVE_STATUSES.includes(o.status);
@@ -267,6 +273,11 @@ export default function KitchenPage() {
                             </>
                           )}
                         </motion.button>
+                      )}
+                      {order.status === "ready" && (
+                        <button onClick={() => stopCall(order.id)} className="w-full rounded-xl border-2 border-blue-200 bg-blue-50 py-2.5 text-sm font-bold text-blue-800">
+                          Matikan suara panggilan pelanggan
+                        </button>
                       )}
 
                       {order.status === "completed" && (

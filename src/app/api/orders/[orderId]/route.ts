@@ -95,7 +95,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     if (status) updatePayload.status = status;
     if (notes !== undefined) updatePayload.notes = notes;
-    if (status === "completed") updatePayload.completed_at = new Date().toISOString();
+    if (status === "ready") Object.assign(updatePayload, { call_active: true, called_at: new Date().toISOString(), call_acknowledged_at: null });
+    if (status === "completed") Object.assign(updatePayload, { completed_at: new Date().toISOString(), completed_by: user!.userId, call_active: false });
 
     const { data: order, error } = await supabaseAdmin
       .from("orders")

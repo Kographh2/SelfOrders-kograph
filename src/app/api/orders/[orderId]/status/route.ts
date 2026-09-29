@@ -57,7 +57,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
       .from("orders")
       .update({
         status,
+        ...(status === "ready" ? { call_active: true, called_at: new Date().toISOString(), call_acknowledged_at: null } : {}),
         ...(status === "completed" ? { completed_at: new Date().toISOString() } : {}),
+        ...(status === "completed" ? { completed_by: user!.userId, call_active: false } : {}),
         updated_at: new Date().toISOString(),
       })
       .eq("id", orderId)
