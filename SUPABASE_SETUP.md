@@ -11,7 +11,13 @@
 
 ## 2. Jalankan Schema SQL
 
-Buka **SQL Editor** di Supabase dashboard, paste isi `schema.sql`, lalu klik Run.
+Buka **SQL Editor** di Supabase dashboard, jalankan file SQL dalam urutan berikut:
+
+1. `schema.sql`
+2. `MIGRATION_SELFORDER_2026.sql`
+3. `MIGRATION_SELFORDER_FEATURES.sql`
+
+Migration fitur menambahkan pilihan/add-on menu, stok, shift kasir, poin loyalitas, dan pengaturan jam operasional/toko tutup. Jalankan migration pada database yang sudah memakai dua schema sebelumnya; jangan jalankan di urutan terbalik.
 
 ## 3. Buat Owner User Pertama
 

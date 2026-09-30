@@ -22,7 +22,7 @@ export default function CartDrawer({
   onRemoveItem,
   onUpdateQuantity,
 }: CartDrawerProps) {
-  const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const total = items.reduce((sum, item) => sum + (item.price + (item.selected_options ?? []).reduce((n, option) => n + option.price_delta, 0)) * item.quantity, 0);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleCheckout = () => {
@@ -82,7 +82,7 @@ export default function CartDrawer({
               ) : (
                 items.map((item) => (
                   <motion.div
-                    key={item.id}
+                    key={`${item.id}:${[...(item.option_ids ?? [])].sort().join(",")}`}
                     layout
                     initial={{ opacity: 0, x: -12 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -106,18 +106,19 @@ export default function CartDrawer({
                       {item.notes && (
                         <p className="text-xs text-navy-400 italic truncate mt-0.5">"{item.notes}"</p>
                       )}
+                      {item.selected_options?.map(option => <p key={`${option.group_name}-${option.option_name}`} className="text-xs text-navy-500">{option.group_name}: {option.option_name}{option.price_delta ? ` (+Rp ${option.price_delta.toLocaleString("id-ID")})` : ""}</p>)}
                       <p className="text-xs text-navy-500 mt-1">
-                        Rp {item.price.toLocaleString("id-ID")} × {item.quantity}
+                        Rp {(item.price + (item.selected_options ?? []).reduce((n, option) => n + option.price_delta, 0)).toLocaleString("id-ID")} × {item.quantity}
                       </p>
                       <p className="text-sm font-bold text-navy-900 mt-0.5">
-                        Rp {(item.price * item.quantity).toLocaleString("id-ID")}
+                        Rp {((item.price + (item.selected_options ?? []).reduce((n, option) => n + option.price_delta, 0)) * item.quantity).toLocaleString("id-ID")}
                       </p>
                     </div>
 
                     <div className="flex flex-col items-end gap-2">
                       {onRemoveItem && (
                         <button
-                          onClick={() => onRemoveItem(item.id)}
+                          onClick={() => onRemoveItem(`${item.id}:${[...(item.option_ids ?? [])].sort().join(",")}`)}
                           className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           aria-label="Hapus item"
                         >
@@ -127,7 +128,7 @@ export default function CartDrawer({
                       {onUpdateQuantity && (
                         <div className="flex items-center gap-1 mt-auto">
                           <button
-                            onClick={() => onUpdateQuantity(item.id, -1)}
+                            onClick={() => onUpdateQuantity(`${item.id}:${[...(item.option_ids ?? [])].sort().join(",")}`, -1)}
                             className="w-6 h-6 bg-navy-100 text-navy-700 rounded-lg flex items-center justify-center text-sm font-bold hover:bg-navy-200 transition-colors"
                           >
                             −
@@ -136,7 +137,7 @@ export default function CartDrawer({
                             {item.quantity}
                           </span>
                           <button
-                            onClick={() => onUpdateQuantity(item.id, 1)}
+                            onClick={() => onUpdateQuantity(`${item.id}:${[...(item.option_ids ?? [])].sort().join(",")}`, 1)}
                             className="w-7 h-7 bg-blue-600 text-white rounded-lg flex items-center justify-center text-sm font-bold hover:bg-blue-700 transition-colors"
                           >
                             +

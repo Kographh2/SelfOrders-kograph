@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { getAuthUser, isOwnerOrAdmin, hasStoreAccess } from "@/lib/auth";
+import { normalizeOptionGroups } from "@/lib/menu-options";
 
 type Params = { params: Promise<{ itemId: string }> };
 
@@ -41,7 +42,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     }
 
     const body = await request.json();
-    const { name, description, price, image, isAvailable, isFeatured, displayOrder, categoryId } = body;
+    const { name, description, price, image, isAvailable, isFeatured, displayOrder, categoryId, optionGroups, trackStock, stockQuantity, showOnMenu } = body;
 
     if (price !== undefined && (typeof price !== "number" || price < 0)) {
       return NextResponse.json({ error: "Invalid price" }, { status: 400 });
@@ -58,6 +59,10 @@ export async function PUT(request: NextRequest, { params }: Params) {
         ...(isFeatured !== undefined && { is_featured: isFeatured }),
         ...(displayOrder !== undefined && { display_order: displayOrder }),
         ...(categoryId !== undefined && { category_id: categoryId }),
+        ...(optionGroups !== undefined && { option_groups: normalizeOptionGroups(optionGroups) }),
+        ...(trackStock !== undefined && { track_stock: Boolean(trackStock) }),
+        ...(stockQuantity !== undefined && { stock_quantity: trackStock === false ? null : Math.max(0, Math.floor(Number(stockQuantity))) }),
+        ...(showOnMenu !== undefined && { show_on_menu: Boolean(showOnMenu) }),
         updated_at: new Date().toISOString(),
       })
       .eq("id", itemId)
@@ -68,7 +73,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     return NextResponse.json({ data }, { status: 200 });
   } catch (error: unknown) {
-    return NextResponse.json({ error: "Failed to update item" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Failed to update item";
+    const validationError = /maksimal|belum lengkap|tidak valid/i.test(message);
+    return NextResponse.json({ error: message }, { status: validationError ? 400 : 500 });
   }
 }
 

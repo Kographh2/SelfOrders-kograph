@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { getAuthUser, isStaff, hasStoreAccess } from "@/lib/auth";
+import { getStoreOperatingStatus } from "@/lib/store-hours";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +80,15 @@ export async function POST(request: NextRequest) {
 
     if (!storeId) {
       return NextResponse.json({ error: "storeId is required" }, { status: 400 });
+    }
+    const { data: orderStore } = await supabaseAdmin.from("stores")
+      .select("id,is_active,manual_closed,opening_hours,timezone")
+      .eq("id", storeId).maybeSingle();
+    if (!orderStore) return NextResponse.json({ error: "Toko tidak ditemukan" }, { status: 404 });
+    const operatingStatus = getStoreOperatingStatus(orderStore);
+    if (!operatingStatus.is_open) {
+      const nextOpen = operatingStatus.next_open_label ? ` Buka kembali ${operatingStatus.next_open_label}.` : "";
+      return NextResponse.json({ error: `Toko sedang tutup.${nextOpen}` }, { status: 409 });
     }
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "Order harus memiliki minimal 1 item" }, { status: 400 });

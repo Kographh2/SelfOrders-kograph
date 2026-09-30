@@ -7,7 +7,7 @@ import toast, { Toaster } from "react-hot-toast";
 import { useAuth, useRole, getAuthHeaders } from "@/contexts/AuthContext";
 import { PageTransition, StaggerContainer, StaggerItem, EmptyState } from "@/components/ui/Animations";
 import { ConfirmDialog } from "@/components/ui/ModernAlert";
-import type { MenuItem, Category } from "@/types";
+import type { MenuItem, Category, MenuOptionGroup } from "@/types";
 
 interface MenuFormData {
   name: string;
@@ -18,11 +18,16 @@ interface MenuFormData {
   isFeatured: boolean;
   displayOrder: string;
   image: string;
+  optionGroups: MenuOptionGroup[];
+  trackStock: boolean;
+  stockQuantity: string;
+  showOnMenu: boolean;
 }
 
 const EMPTY_FORM: MenuFormData = {
   name: "", description: "", price: "", categoryId: "",
   isAvailable: true, isFeatured: false, displayOrder: "0", image: "",
+  optionGroups: [], trackStock: false, stockQuantity: "0", showOnMenu: true,
 };
 
 export default function MenuDashboardPage() {
@@ -59,7 +64,7 @@ export default function MenuDashboardPage() {
     setIsLoading(true);
     try {
       const [itemsRes, catsRes] = await Promise.all([
-        fetch(`/api/menu/items?storeId=${storeId}`, { headers: getAuthHeaders(token) }),
+        fetch(`/api/menu/items?storeId=${storeId}&management=true`, { headers: getAuthHeaders(token) }),
         fetch(`/api/menu/categories?storeId=${storeId}`, { headers: getAuthHeaders(token) }),
       ]);
       if (itemsRes.ok) setItems((await itemsRes.json()).data ?? []);
@@ -77,6 +82,8 @@ export default function MenuDashboardPage() {
       price: String(item.price), categoryId: item.category_id,
       isAvailable: item.is_available, isFeatured: item.is_featured,
       displayOrder: String(item.display_order), image: item.image ?? "",
+      optionGroups: item.option_groups ?? [], trackStock: item.track_stock ?? false,
+      stockQuantity: String(item.stock_quantity ?? 0), showOnMenu: item.show_on_menu !== false,
     });
     setEditId(item.id);
     setShowForm(true);
@@ -98,6 +105,8 @@ export default function MenuDashboardPage() {
         isAvailable: form.isAvailable, isFeatured: form.isFeatured,
         displayOrder: parseInt(form.displayOrder) || 0,
         image: form.image.trim() || null,
+        optionGroups: form.optionGroups, trackStock: form.trackStock,
+        stockQuantity: Number(form.stockQuantity), showOnMenu: form.showOnMenu,
       };
       const url = editId ? `/api/menu/items/${editId}` : "/api/menu/items";
       const method = editId ? "PUT" : "POST";
@@ -289,6 +298,29 @@ export default function MenuDashboardPage() {
                   <span className="text-sm text-navy-700">Rekomendasi</span>
                 </label>
               </div>
+              <section className="space-y-3 rounded-2xl border border-navy-100 bg-white p-4">
+                <h4 className="font-bold text-navy-900">Stok cabang & tampilan pelanggan</h4>
+                <label className="flex items-center gap-2 text-sm text-navy-700">
+                  <input type="checkbox" checked={form.trackStock} onChange={e => setForm(p => ({ ...p, trackStock: e.target.checked }))} />
+                  Lacak stok untuk cabang ini
+                </label>
+                {form.trackStock && <input type="number" min="0" value={form.stockQuantity} onChange={e => setForm(p => ({ ...p, stockQuantity: e.target.value }))} className="input-field w-full" placeholder="Jumlah stok" />}
+                <label className="flex items-center gap-2 text-sm text-navy-700">
+                  <input type="checkbox" checked={form.showOnMenu} onChange={e => setForm(p => ({ ...p, showOnMenu: e.target.checked }))} />
+                  Tampilkan di menu pelanggan cabang ini
+                </label>
+                <p className="text-xs text-navy-400">Menu yang habis atau disembunyikan tidak akan muncul di halaman pelanggan cabang ini.</p>
+              </section>
+              <section className="space-y-3 rounded-2xl border border-navy-100 bg-white p-4">
+                <div className="flex items-center justify-between"><h4 className="font-bold text-navy-900">Varian & tambahan</h4><button type="button" onClick={() => setForm(p => ({ ...p, optionGroups: [...p.optionGroups, { id: crypto.randomUUID(), name: "", required: false, min_select: 0, max_select: 1, options: [{ id: crypto.randomUUID(), name: "", price_delta: 0 }] }] }))} className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">Tambah grup</button></div>
+                {form.optionGroups.map((group, groupIndex) => <div key={group.id} className="space-y-2 rounded-xl bg-blue-50/60 p-3">
+                  <div className="flex gap-2"><input value={group.name} onChange={e => setForm(p => ({ ...p, optionGroups: p.optionGroups.map((g, i) => i === groupIndex ? { ...g, name: e.target.value } : g) }))} className="input-field min-w-0 flex-1" placeholder="Nama grup, mis. Ukuran"/><button type="button" onClick={() => setForm(p => ({ ...p, optionGroups: p.optionGroups.filter((_, i) => i !== groupIndex) }))} className="px-2 text-red-500">Hapus</button></div>
+                  <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={group.required} onChange={e => setForm(p => ({ ...p, optionGroups: p.optionGroups.map((g, i) => i === groupIndex ? { ...g, required: e.target.checked, min_select: e.target.checked ? 1 : 0 } : g) }))}/>Wajib dipilih</label>
+                  {group.options.map((option, optionIndex) => <div key={option.id} className="grid grid-cols-[1fr_7rem_auto] gap-2"><input value={option.name} onChange={e => setForm(p => ({ ...p, optionGroups: p.optionGroups.map((g, i) => i === groupIndex ? { ...g, options: g.options.map((o, j) => j === optionIndex ? { ...o, name: e.target.value } : o) } : g) }))} className="input-field min-w-0" placeholder="Nama pilihan"/><input type="number" min="0" value={option.price_delta} onChange={e => setForm(p => ({ ...p, optionGroups: p.optionGroups.map((g, i) => i === groupIndex ? { ...g, options: g.options.map((o, j) => j === optionIndex ? { ...o, price_delta: Number(e.target.value) } : o) } : g) }))} className="input-field" placeholder="Tambah Rp"/><button type="button" onClick={() => setForm(p => ({ ...p, optionGroups: p.optionGroups.map((g, i) => i === groupIndex ? { ...g, options: g.options.filter((_, j) => j !== optionIndex) } : g) }))} className="px-2 text-red-500">×</button></div>)}
+                  <button type="button" onClick={() => setForm(p => ({ ...p, optionGroups: p.optionGroups.map((g, i) => i === groupIndex ? { ...g, options: [...g.options, { id: crypto.randomUUID(), name: "", price_delta: 0 }] } : g) }))} className="text-xs font-bold text-blue-700">+ Tambah pilihan</button>
+                </div>)}
+                <p className="text-xs text-navy-400">Contoh: grup “Ukuran” berisi Reguler dan Large (+Rp5.000).</p>
+              </section>
               <div className="flex gap-3 pt-2">
                 <button onClick={() => setShowForm(false)} className="flex-1 py-3 rounded-xl border border-navy-200 text-navy-700 font-medium text-sm hover:bg-navy-50 transition-colors">Batal</button>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={handleSave} disabled={isSaving}

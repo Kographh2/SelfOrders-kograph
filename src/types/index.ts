@@ -50,9 +50,28 @@ export interface MenuItem {
   image?: string;
   is_available: boolean;
   is_featured: boolean;
+  option_groups?: MenuOptionGroup[];
+  track_stock?: boolean;
+  stock_quantity?: number | null;
+  show_on_menu?: boolean;
   display_order: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface MenuOption {
+  id: string;
+  name: string;
+  price_delta: number;
+}
+
+export interface MenuOptionGroup {
+  id: string;
+  name: string;
+  required: boolean;
+  min_select: number;
+  max_select: number;
+  options: MenuOption[];
 }
 
 export interface Table {
@@ -158,12 +177,15 @@ export interface CartItem {
   updated_at: string;
   quantity: number;
   notes?: string;
+  option_ids?: string[];
+  selected_options?: Array<{ group_name: string; option_name: string; price_delta: number }>;
 }
 
 export interface CheckoutItem {
   menu_item_id: string;
   quantity: number;
   notes?: string;
+  option_ids?: string[];
 }
 
 export interface PushSubscriptionPayload {

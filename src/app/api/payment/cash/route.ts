@@ -20,7 +20,9 @@ export async function POST(request: NextRequest) {
       const user = await getAuthUser(request);
       if (!isStaff(user) || !hasStoreAccess(user, order.store_id)) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
       if (order.payment_status === "paid") return NextResponse.json({ data: order });
-      await supabaseAdmin.from("payments").update({ status:"paid", paid_at:new Date().toISOString(), updated_at:new Date().toISOString() }).eq("order_id", orderId);
+      const { data: shift } = await supabaseAdmin.from("cashier_shifts").select("id").eq("store_id", order.store_id).eq("cashier_id", user!.userId).is("closed_at", null).maybeSingle();
+      if (!shift) return NextResponse.json({ error: "Buka shift kasir sebelum mengonfirmasi pembayaran tunai" }, { status: 409 });
+      await supabaseAdmin.from("payments").update({ status:"paid", paid_by:user!.userId, paid_at:new Date().toISOString(), updated_at:new Date().toISOString() }).eq("order_id", orderId);
       const { data, error } = await supabaseAdmin.from("orders").update({ payment_status:"paid", status:"confirmed", payment_method:"cash", updated_at:new Date().toISOString() }).eq("id", orderId).select().single();
       if (error) throw error;
       await notifyOrderStatus(orderId, "confirmed");

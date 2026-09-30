@@ -8,7 +8,7 @@ export async function GET(request:NextRequest){
     const orderId=request.nextUrl.searchParams.get("orderId");
     const sessionId=request.nextUrl.searchParams.get("sessionId");
     if(!orderId) return NextResponse.json({error:"orderId required"},{status:400});
-    const {data:order,error}=await supabaseAdmin.from("orders").select("*, store:stores(id,name,address,phone,email,logo), table:tables(id,number), order_items(id,name_snapshot,price_snapshot,quantity,subtotal,notes), payments(id,method,status,transaction_id,paid_at), order_feedback(id,rating,note,tip_amount)").eq("id",orderId).single();
+    const {data:order,error}=await supabaseAdmin.from("orders").select("*, store:stores(id,name,address,phone,email,logo), table:tables(id,number), order_items(id,menu_item_id,name_snapshot,price_snapshot,quantity,subtotal,notes,options_snapshot), payments(id,method,status,transaction_id,paid_at), order_feedback(id,rating,note,tip_amount)").eq("id",orderId).single();
     if(error||!order) return NextResponse.json({error:"Order not found"},{status:404});
     const user=await getAuthUser(request);
     const allowedBySession=Boolean(sessionId&&order.anonymous_session_id&&sessionId===order.anonymous_session_id);

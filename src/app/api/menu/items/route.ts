@@ -1,15 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { getAuthUser, isOwnerOrAdmin, hasStoreAccess } from "@/lib/auth";
+import { getAuthUser, isOwnerOrAdmin, hasStoreAccess, isStaff } from "@/lib/auth";
+import { normalizeOptionGroups } from "@/lib/menu-options";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getAuthUser(request);
     const searchParams = request.nextUrl.searchParams;
     const storeId = searchParams.get("storeId");
     const categoryId = searchParams.get("categoryId");
     const featured = searchParams.get("featured");
+    const managementView = searchParams.get("management") === "true" && isStaff(user);
 
     let query = supabaseAdmin
       .from("menu_items")
@@ -19,6 +22,12 @@ export async function GET(request: NextRequest) {
     if (storeId) query = query.eq("store_id", storeId);
     if (categoryId) query = query.eq("category_id", categoryId);
     if (featured === "true") query = query.eq("is_featured", true);
+    // Customer menu hides unavailable/hidden items and items whose tracked
+    // stock has run out. Staff still see them in the branch menu manager.
+    if (!managementView) {
+      query = query.eq("is_available", true).eq("show_on_menu", true)
+        .or("track_stock.eq.false,stock_quantity.gt.0");
+    }
 
     const { data, error } = await query;
     if (error) throw error;
@@ -38,7 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { storeId, categoryId, name, description, price, image, isAvailable, isFeatured, displayOrder } = body;
+    const { storeId, categoryId, name, description, price, image, isAvailable, isFeatured, displayOrder, optionGroups, trackStock, stockQuantity, showOnMenu } = body;
 
     if (!storeId || !categoryId || !name?.trim()) {
       return NextResponse.json({ error: "storeId, categoryId and name are required" }, { status: 400 });
@@ -75,6 +84,10 @@ export async function POST(request: NextRequest) {
         is_available: isAvailable ?? true,
         is_featured: isFeatured ?? false,
         display_order: displayOrder ?? 0,
+        option_groups: normalizeOptionGroups(optionGroups),
+        track_stock: Boolean(trackStock),
+        stock_quantity: trackStock ? Number(stockQuantity ?? 0) : null,
+        show_on_menu: showOnMenu !== false,
       })
       .select()
       .single();
@@ -84,6 +97,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data }, { status: 201 });
   } catch (error: unknown) {
     console.error("Menu items POST error:", error);
-    return NextResponse.json({ error: "Failed to create menu item" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Failed to create menu item";
+    const validationError = /maksimal|belum lengkap|tidak valid/i.test(message);
+    return NextResponse.json({ error: message }, { status: validationError ? 400 : 500 });
   }
 }

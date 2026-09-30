@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { BadgePercent, Banknote, CheckCircle, CreditCard, Loader2, ShieldCheck, WalletCards, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { loadMidtransSnap } from "@/lib/midtrans-client";
 import type { CartItem, CheckoutItem, PromoClaim } from "@/types";
 
 interface Props { isOpen:boolean; onClose:()=>void; storeId:string; tableNumber?:string; cartItems:CartItem[]; onOrderCreated?:(id:string,no:number,total:number)=>void; onPaymentComplete:(method?:string)=>void; customerName?:string; customerPhone?:string; customerEmail?:string; notes?:string }
@@ -21,20 +22,11 @@ export default function PaymentModal(props:Props) {
   const [claims,setClaims] = useState<PromoClaim[]>([]);
   const [promoClaimId,setPromoClaimId] = useState("");
   const [promoCode,setPromoCode] = useState("");
-  const snapLoaded = useRef(false);
-  const total = props.cartItems.reduce((sum,item)=>sum+Number(item.price)*item.quantity,0);
-  useEffect(()=>{
-    if(!props.isOpen||snapLoaded.current||typeof window==="undefined") return;
-    if(window.snap){ snapLoaded.current=true; return; }
-    const script=document.createElement("script");
-    script.src=process.env.NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION==="true"?"https://app.midtrans.com/snap/snap.js":"https://app.sandbox.midtrans.com/snap/snap.js";
-    script.dataset.clientKey=process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY??""; script.async=true;
-    script.onload=()=>{snapLoaded.current=true;}; document.head.appendChild(script);
-  },[props.isOpen]);
+  const total = props.cartItems.reduce((sum,item)=>sum+(Number(item.price)+(item.selected_options??[]).reduce((n,option)=>n+option.price_delta,0))*item.quantity,0);
   useEffect(()=>{if(!props.isOpen||!token)return;fetch(`/api/promos/wallet?storeId=${props.storeId}`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json()).then(r=>setClaims(r.data||[])).catch(()=>{})},[props.isOpen,props.storeId,token]);
   const redeemCode=async()=>{if(!token)return toast.error("Login terlebih dahulu untuk menukar kode");const response=await fetch('/api/promos/claim-code',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({storeId:props.storeId,code:promoCode})});const result=await response.json();if(!response.ok)return toast.error(result.error||'Kode tidak valid');const claim={...result.data,promo:result.data.promo} as PromoClaim;setClaims(prev=>[claim,...prev]);setPromoClaimId(claim.id);setPromoCode('');toast.success('Promo berhasil ditambahkan dan dipilih')};
   const createOrder=async()=>{
-    const items:CheckoutItem[]=props.cartItems.map(item=>({menu_item_id:item.id,quantity:item.quantity,notes:item.notes}));
+    const items:CheckoutItem[]=props.cartItems.map(item=>({menu_item_id:item.id,quantity:item.quantity,notes:item.notes,option_ids:item.option_ids??[]}));
     const headers:Record<string,string>={"Content-Type":"application/json"}; if(token) headers.Authorization=`Bearer ${token}`;
     const response=await fetch("/api/orders",{method:"POST",headers,body:JSON.stringify({storeId:props.storeId,tableNumber:props.tableNumber||null,userId:user?.id||null,anonymousSessionId:localStorage.getItem("selforder_session_id"),customerName:props.customerName||null,customerPhone:props.customerPhone||null,customerEmail:props.customerEmail||null,notes:props.notes||null,promoClaimId:promoClaimId||null,items})});
     const result=await response.json(); if(!response.ok) throw new Error(result.error||"Gagal membuat pesanan");
@@ -46,6 +38,9 @@ export default function PaymentModal(props:Props) {
     if(method==="wallet"&&(!token||!user?.email)){toast.error("Login akun diperlukan untuk menggunakan saldo");return;}
     setProcessing(true);
     try{
+      // Load Snap before creating an order so a slow SDK cannot leave behind
+      // an unpaid order when the customer taps checkout immediately.
+      const snapClient=method==="snap"?await loadMidtransSnap():null;
       const order=await createOrder(); props.onOrderCreated?.(order.id,order.number,order.total);
       if(method==="cash"){
         const response=await fetch("/api/payment/cash",{method:"POST",headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify({orderId:order.id,sessionId:localStorage.getItem("selforder_session_id")})});
@@ -60,8 +55,8 @@ export default function PaymentModal(props:Props) {
       }
       const response=await fetch("/api/payment/midtrans",{method:"POST",headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify({orderId:order.id,sessionId:localStorage.getItem("selforder_session_id")})});
       const result=await response.json(); if(!response.ok) throw new Error(result.error||"Gagal membuka Midtrans Snap");
-      if(!window.snap) throw new Error("Midtrans Snap belum siap. Muat ulang halaman.");
-      window.snap.pay(result.data.token,{onSuccess:()=>{props.onPaymentComplete("snap");openWaiting(order.id);},onPending:()=>{props.onPaymentComplete("snap");openWaiting(order.id);},onError:()=>openWaiting(order.id),onClose:()=>openWaiting(order.id)});
+      if(!snapClient) throw new Error("Midtrans Snap belum siap");
+      snapClient.pay(result.data.token,{onSuccess:()=>{props.onPaymentComplete("snap");openWaiting(order.id);},onPending:()=>{props.onPaymentComplete("snap");openWaiting(order.id);},onError:()=>openWaiting(order.id),onClose:()=>openWaiting(order.id)});
     }catch(error){toast.error(error instanceof Error?error.message:"Pembayaran gagal");setProcessing(false);}
   };
   return <AnimatePresence>{props.isOpen&&<motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-[110] flex items-end bg-navy-950/70 p-0 backdrop-blur-md sm:items-center sm:p-4">

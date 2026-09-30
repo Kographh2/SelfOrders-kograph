@@ -13,7 +13,10 @@ const MidtransClient = require("midtrans-client") as {  // skipcq: JS-0359
 
 const SERVER_KEY = process.env.MIDTRANS_SERVER_KEY ?? "";
 const CLIENT_KEY = process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY ?? "";
-const IS_PRODUCTION = process.env.MIDTRANS_IS_PRODUCTION === "true";
+// Keep the server and browser on the same Midtrans environment. Older setups
+// only define the public flag, while newer deployments can use the server flag.
+const IS_PRODUCTION =
+  (process.env.MIDTRANS_IS_PRODUCTION ?? process.env.NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION) === "true";
 
 export const snap = new MidtransClient.Snap({
   isProduction: IS_PRODUCTION,
@@ -34,22 +37,40 @@ export async function createSnapTransaction(params: {
   enabledPayments?: string[];
 }) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const grossAmount = Math.round(params.amount);
+  const itemDetails = params.items.map((item) => ({
+    id: item.id.substring(0, 50),
+    name: item.name.substring(0, 50),
+    price: Math.round(item.price),
+    quantity: Math.max(1, Math.trunc(item.quantity)),
+  }));
+
+  // Snap validates that item_details total exactly matches gross_amount.
+  // Database prices and tax can contain fractional rupiah, while Snap accepts
+  // integer rupiah, so include the rounding difference explicitly.
+  const itemTotal = itemDetails.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const adjustment = grossAmount - itemTotal;
+  if (adjustment !== 0) {
+    itemDetails.push({
+      id: "order-adjustment",
+      name: "Penyesuaian pembulatan",
+      price: adjustment,
+      quantity: 1,
+    });
+  }
+
+  const customerDetails = {
+    first_name: params.customerName?.trim() || "Customer",
+    ...(params.customerEmail?.trim() ? { email: params.customerEmail.trim() } : {}),
+    ...(params.customerPhone?.trim() ? { phone: params.customerPhone.trim() } : {}),
+  };
   const transaction = await snap.createTransaction({
     transaction_details: {
       order_id: params.orderId,
-      gross_amount: Math.round(params.amount),
+      gross_amount: grossAmount,
     },
-    item_details: params.items.map((item) => ({
-      id: item.id,
-      name: item.name.substring(0, 50),
-      price: Math.round(item.price),
-      quantity: item.quantity,
-    })),
-    customer_details: {
-      first_name: params.customerName ?? "Customer",
-      email: params.customerEmail ?? "",
-      phone: params.customerPhone ?? "",
-    },
+    item_details: itemDetails,
+    customer_details: customerDetails,
     enabled_payments: params.enabledPayments ?? [
       "credit_card", "bank_transfer", "echannel",
       "gopay", "shopeepay", "qris", "indomaret", "alfamart",

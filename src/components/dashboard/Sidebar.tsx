@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  LayoutDashboard, ShoppingBag, ChefHat, UtensilsCrossed,
+  LayoutDashboard, ShoppingBag, ChefHat, UtensilsCrossed, Clock3,
   Tag, Table2, QrCode, Users, Settings, Store, LogOut,
   ChevronLeft, ChevronRight, Menu, X, ScanBarcode, BadgePercent,
 } from "lucide-react";
@@ -31,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/stores",   label: "Toko",        icon: Store,            roles: ["owner"] },
   { href: "/dashboard/promos",   label: "Promo Struk", icon: BadgePercent,     roles: ["owner"] },
   { href: "/dashboard/settings", label: "Pengaturan",  icon: Settings,         roles: ["owner","admin"] },
+  { href: "/dashboard/hours", label: "Jam Operasional", icon: Clock3,          roles: ["owner","admin"] },
 ];
 
 export default function Sidebar() {
