@@ -9,7 +9,7 @@ import type { CartItem, CheckoutItem, PromoClaim } from "@/types";
 
 interface Props { isOpen:boolean; onClose:()=>void; storeId:string; tableNumber?:string; cartItems:CartItem[]; onOrderCreated?:(id:string,no:number,total:number)=>void; onPaymentComplete:(method?:string)=>void; customerName?:string; customerPhone?:string; customerEmail?:string; notes?:string }
 const METHODS = [
-  { id:"snap", name:"Midtrans Snap", description:"Pembayaran di sini, status pesanan di tab baru", Icon:CreditCard },
+  { id:"snap", name:"Midtrans Snap", description:"QRIS, e-wallet, transfer bank, atau kartu", Icon:CreditCard },
   { id:"wallet", name:"Saldo SelfOrder", description:"Bayar instan dari saldo akun", Icon:WalletCards },
   { id:"cash", name:"Tunai di Kasir", description:"Tunjukkan barcode konfirmasi ke kasir", Icon:Banknote },
 ] as const;
@@ -23,7 +23,6 @@ export default function PaymentModal(props:Props) {
   const [promoClaimId,setPromoClaimId] = useState("");
   const [promoCode,setPromoCode] = useState("");
   const total = props.cartItems.reduce((sum,item)=>sum+(Number(item.price)+(item.selected_options??[]).reduce((n,option)=>n+option.price_delta,0))*item.quantity,0);
-  let snapOrderId: string | null = null;
   useEffect(()=>{if(!props.isOpen||!token)return;fetch(`/api/promos/wallet?storeId=${props.storeId}`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json()).then(r=>setClaims(r.data||[])).catch(()=>{})},[props.isOpen,props.storeId,token]);
   const redeemCode=async()=>{if(!token)return toast.error("Login terlebih dahulu untuk menukar kode");const response=await fetch('/api/promos/claim-code',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({storeId:props.storeId,code:promoCode})});const result=await response.json();if(!response.ok)return toast.error(result.error||'Kode tidak valid');const claim={...result.data,promo:result.data.promo} as PromoClaim;setClaims(prev=>[claim,...prev]);setPromoClaimId(claim.id);setPromoCode('');toast.success('Promo berhasil ditambahkan dan dipilih')};
   const createOrder=async()=>{
@@ -37,9 +36,6 @@ export default function PaymentModal(props:Props) {
   const pay=async()=>{
     if(!method){toast.error("Pilih metode pembayaran");return;}
     if(method==="wallet"&&(!token||!user?.email)){toast.error("Login akun diperlukan untuk menggunakan saldo");return;}
-    // Open synchronously from the click gesture so browsers do not block it.
-    const waitingWindow = method === "snap" ? window.open("about:blank", "_blank") : null;
-    if (waitingWindow) { waitingWindow.blur(); window.focus(); }
     let snapOrderId: string | null = null;
     setProcessing(true);
     try{
@@ -62,7 +58,6 @@ export default function PaymentModal(props:Props) {
       const result=await response.json(); if(!response.ok) throw new Error(result.error||"Gagal membuka Midtrans Snap");
       if(!snapClient) throw new Error("Midtrans Snap belum siap");
       const waitingUrl = `/orders/${encodeURIComponent(order.id)}/waiting`;
-      if (waitingWindow && !waitingWindow.closed) waitingWindow.location.replace(waitingUrl);
       sessionStorage.setItem("selforder_pending_snap_order", order.id);
       let returned = false;
       const returnToWaiting = () => {
@@ -70,19 +65,15 @@ export default function PaymentModal(props:Props) {
         returned = true;
         sessionStorage.removeItem("selforder_pending_snap_order");
         props.onPaymentComplete("snap");
-        if (waitingWindow && !waitingWindow.closed) waitingWindow.focus();
-        else window.location.assign(waitingUrl);
+        window.location.assign(waitingUrl);
       };
       snapClient.pay(result.data.token,{onSuccess:returnToWaiting,onPending:returnToWaiting,onError:returnToWaiting,onClose:returnToWaiting});
     }catch(error){
       if (method === "snap" && snapOrderId) {
         sessionStorage.setItem("selforder_pending_snap_order", snapOrderId);
-        const waitingUrl = `/orders/${encodeURIComponent(snapOrderId)}/waiting`;
-        if (waitingWindow && !waitingWindow.closed) waitingWindow.location.replace(waitingUrl);
-        else openWaiting(snapOrderId);
+        openWaiting(snapOrderId);
         return;
       }
-      if (waitingWindow && !waitingWindow.closed) waitingWindow.close();
       toast.error(error instanceof Error?error.message:"Pembayaran gagal");setProcessing(false);
     }
   };

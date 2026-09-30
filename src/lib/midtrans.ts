@@ -8,6 +8,17 @@ const MidtransClient = require("midtrans-client") as {  // skipcq: JS-0359
       enabled_payments?: string[];
       callbacks?: { finish?: string };
     }): Promise<{ token: string; redirect_url: string }>;
+    transaction: {
+      status(orderId: string): Promise<{
+        order_id: string;
+        transaction_id?: string;
+        transaction_status: string;
+        fraud_status?: string;
+        status_code?: string;
+        gross_amount?: string;
+        payment_type?: string;
+      }>;
+    };
   };
 };
 

@@ -4,16 +4,18 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
-import { BellOff, BellRing, CheckCircle2, Clock3, Download, Home, Loader2, ReceiptText, RefreshCw, Star, WalletCards, XCircle } from "lucide-react";
+import { BellOff, BellRing, CheckCircle2, Clock3, CreditCard, Download, Home, Loader2, ReceiptText, RefreshCw, Star, WalletCards, XCircle } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { useAuth, getAuthHeaders } from "@/contexts/AuthContext";
+import { loadMidtransSnap } from "@/lib/midtrans-client";
 
-type TrackedOrder={id:string;store_id:string;order_number:number;status:string;payment_status:string;payment_method?:string;call_active?:boolean;subtotal:number;tax_amount:number;service_charge:number;total_amount:number;created_at:string;completed_at?:string;cash_code?:string;store?:{name:string;address:string;phone:string};table?:{number:number};order_items:Array<{id:string;menu_item_id:string;name_snapshot:string;price_snapshot:number;quantity:number;subtotal:number;notes?:string;options_snapshot?:Array<{group_name:string;option_id:string;option_name:string;price_delta:number}>}>;order_feedback?:Array<{id:string;rating:number;note?:string;tip_amount:number}>;promo_discount?:number;promo?:{id:string;name:string;description?:string;code:string;claim_url:string}|null};
+type TrackedOrder={id:string;store_id:string;order_number:number;status:string;payment_status:string;payment_method?:string;snap_token?:string|null;call_active?:boolean;subtotal:number;tax_amount:number;service_charge:number;total_amount:number;created_at:string;completed_at?:string;cash_code?:string;store?:{name:string;address:string;phone:string};table?:{number:number};order_items:Array<{id:string;menu_item_id:string;name_snapshot:string;price_snapshot:number;quantity:number;subtotal:number;notes?:string;options_snapshot?:Array<{group_name:string;option_id:string;option_name:string;price_delta:number}>}>;order_feedback?:Array<{id:string;rating:number;note?:string;tip_amount:number}>;promo_discount?:number;promo?:{id:string;name:string;description?:string;code:string;claim_url:string}|null};
 const steps=["confirmed","preparing","ready","completed"];
 
 export default function WaitingPage(){
   const {orderId}=useParams<{orderId:string}>(); const {token}=useAuth();
   const [order,setOrder]=useState<TrackedOrder|null>(null); const [error,setError]=useState("");
+  const [checkingPayment,setCheckingPayment]=useState(false); const [openingSnap,setOpeningSnap]=useState(false);
   const [soundEnabled,setSoundEnabled]=useState(true); const [audioUnlocked,setAudioUnlocked]=useState(false);
   const [rating,setRating]=useState(5); const [tip,setTip]=useState(0); const [feedback,setFeedback]=useState(""); const [sending,setSending]=useState(false);
   const barcodeRef=useRef<SVGSVGElement>(null); const qrRef=useRef<HTMLCanvasElement>(null);
@@ -23,6 +25,38 @@ export default function WaitingPage(){
     const result=await response.json(); if(!response.ok){setError(result.error||"Pesanan tidak ditemukan");return;}
     setOrder(result.data); setError("");
   },[orderId,token]);
+  const checkPayment=async()=>{
+    setCheckingPayment(true);
+    try{
+      const response=await fetch("/api/payment/midtrans/status",{method:"POST",headers:{"Content-Type":"application/json",...getAuthHeaders(token)},body:JSON.stringify({orderId,sessionId:localStorage.getItem("selforder_session_id")||""})});
+      const result=await response.json();if(!response.ok)throw new Error(result.error||"Status pembayaran belum berhasil diperiksa");
+      await fetchOrder();
+      if(result.data?.payment_status==="paid")toast.success("Pembayaran sudah berhasil");
+      else toast("Pembayaran masih menunggu konfirmasi");
+    }catch(error){toast.error(error instanceof Error?error.message:"Status pembayaran belum berhasil diperiksa")}
+    finally{setCheckingPayment(false)}
+  };
+  const continueSnapPayment=async()=>{
+    if(!order)return;
+    setOpeningSnap(true);
+    let snapOpened=false;
+    const refreshAfterSnap=()=>{setOpeningSnap(false);void fetchOrder()};
+    try{
+      let snapToken=order.snap_token;
+      if(!snapToken){
+        const response=await fetch("/api/payment/midtrans",{method:"POST",headers:{"Content-Type":"application/json",...getAuthHeaders(token)},body:JSON.stringify({orderId:order.id,sessionId:localStorage.getItem("selforder_session_id")||""})});
+        const result=await response.json();if(!response.ok)throw new Error(result.error||"Link pembayaran tidak berhasil dimuat");
+        const returnedToken=result.data?.token;
+        if(typeof returnedToken!=="string"||!returnedToken)throw new Error("Token pembayaran Snap tidak tersedia");
+        snapToken=returnedToken;
+      }
+      if(typeof snapToken!=="string"||!snapToken)throw new Error("Token pembayaran Snap tidak tersedia");
+      const snap=await loadMidtransSnap();
+      snap.pay(snapToken,{onSuccess:()=>{toast.success("Pembayaran diterima, status sedang diperbarui");refreshAfterSnap()},onPending:()=>{toast("Pembayaran masih menunggu konfirmasi");refreshAfterSnap()},onError:()=>{toast.error("Pembayaran belum berhasil");refreshAfterSnap()},onClose:refreshAfterSnap});
+      snapOpened=true;
+    }catch(error){toast.error(error instanceof Error?error.message:"Snap belum dapat dibuka")}
+    finally{if(!snapOpened)setOpeningSnap(false)}
+  };
   useEffect(()=>{if(sessionStorage.getItem("selforder_pending_snap_order")===orderId)sessionStorage.removeItem("selforder_pending_snap_order")},[orderId]);
   useEffect(()=>{fetchOrder();const timer=setInterval(fetchOrder,4000);return()=>clearInterval(timer);},[fetchOrder]);
   useEffect(()=>{setSoundEnabled(localStorage.getItem("selforder_call_sound")!=="off");setAudioUnlocked(localStorage.getItem("selforder_audio_unlocked")==="yes");},[]);
@@ -51,6 +85,7 @@ export default function WaitingPage(){
           {order.table&&<p className="mt-1 text-sm opacity-80">Meja {order.table.number}</p>}
         </div>
         <div className="p-6">
+          {paymentPending&&order.payment_method!=="cash"&&<div className="no-print mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-navy-950"><p className="text-sm">Pembayaran belum terkonfirmasi. Setelah menyelesaikan pembayaran di Snap, tekan <b>Cek pembayaran</b>.</p><div className="mt-3 grid gap-2 sm:grid-cols-2"><button onClick={checkPayment} disabled={checkingPayment} className="flex items-center justify-center gap-2 rounded-xl bg-white py-3 text-sm font-bold text-navy-900 ring-1 ring-amber-200 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${checkingPayment?"animate-spin":""}`}/>{checkingPayment?"Memeriksa...":"Cek pembayaran"}</button><button onClick={continueSnapPayment} disabled={openingSnap} className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white disabled:opacity-50"><CreditCard className="h-4 w-4"/>{openingSnap?"Membuka Snap...":"Lanjutkan pembayaran Snap"}</button></div></div>}
           {order.payment_method==="cash"&&paymentPending&&<div className="mb-6 rounded-2xl border-2 border-blue-200 bg-white p-4 text-center shadow-lg"><WalletCards className="mx-auto mb-2 h-6 w-6 text-blue-700"/><p className="font-bold text-navy-950">Barcode pembayaran tunai</p><p className="mb-3 text-xs text-navy-500">Naikkan brightness layar lalu tunjukkan ke kasir</p><div className="overflow-x-auto rounded-xl bg-white p-2"><svg ref={barcodeRef} className="mx-auto block"/></div></div>}
           {!paymentPending&&!failed&&!done&&<div className="no-print mb-7 flex justify-between">{steps.map((step,index)=><div key={step} className="flex flex-1 flex-col items-center"><div className={`grid h-9 w-9 place-items-center rounded-full text-xs font-bold ${index<=active?"bg-blue-600 text-white":"bg-navy-100 text-navy-400"}`}>{index+1}</div><span className="mt-2 text-[10px] capitalize text-navy-500">{step==="confirmed"?"Diterima":step==="preparing"?"Dimasak":step==="ready"?"Dipanggil":"Selesai"}</span></div>)}</div>}
           {!audioUnlocked&&!done&&<button onClick={unlock} className="no-print mb-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 p-4 font-bold text-white"><BellRing className="h-5 w-5"/>Aktifkan suara panggilan</button>}

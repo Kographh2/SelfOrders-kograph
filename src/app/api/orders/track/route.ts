@@ -26,6 +26,7 @@ export async function GET(request:NextRequest){
       cashCode=`CASH-${String(order.order_number).padStart(3,"0")}-${order.id.slice(0,8).toUpperCase()}`;
       await supabaseAdmin.from("payments").update({transaction_id:cashCode,updated_at:new Date().toISOString()}).eq("id",cashPayment.id);
     }
-    return NextResponse.json({data:{...safe,cash_code:order.payment_method==="cash"?cashCode:null,promo}});
+    const pendingSnapToken = order.payment_status === "pending" && order.payment_method === "snap" ? order.snap_token ?? null : null;
+    return NextResponse.json({data:{...safe,snap_token:pendingSnapToken,cash_code:order.payment_method==="cash"?cashCode:null,promo}});
   }catch(error){console.error("Track order error",error);return NextResponse.json({error:"Failed to track order"},{status:500});}
 }
