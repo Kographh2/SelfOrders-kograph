@@ -9,7 +9,7 @@ import type { CartItem, CheckoutItem, PromoClaim } from "@/types";
 
 interface Props { isOpen:boolean; onClose:()=>void; storeId:string; tableNumber?:string; cartItems:CartItem[]; onOrderCreated?:(id:string,no:number,total:number)=>void; onPaymentComplete:(method?:string)=>void; customerName?:string; customerPhone?:string; customerEmail?:string; notes?:string }
 const METHODS = [
-  { id:"snap", name:"Midtrans Snap", description:"QRIS, e-wallet, transfer bank, atau kartu", Icon:CreditCard },
+  { id:"snap", name:"Midtrans Snap", description:"Pembayaran di sini, status pesanan di tab baru", Icon:CreditCard },
   { id:"wallet", name:"Saldo SelfOrder", description:"Bayar instan dari saldo akun", Icon:WalletCards },
   { id:"cash", name:"Tunai di Kasir", description:"Tunjukkan barcode konfirmasi ke kasir", Icon:Banknote },
 ] as const;
@@ -23,6 +23,7 @@ export default function PaymentModal(props:Props) {
   const [promoClaimId,setPromoClaimId] = useState("");
   const [promoCode,setPromoCode] = useState("");
   const total = props.cartItems.reduce((sum,item)=>sum+(Number(item.price)+(item.selected_options??[]).reduce((n,option)=>n+option.price_delta,0))*item.quantity,0);
+  let snapOrderId: string | null = null;
   useEffect(()=>{if(!props.isOpen||!token)return;fetch(`/api/promos/wallet?storeId=${props.storeId}`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json()).then(r=>setClaims(r.data||[])).catch(()=>{})},[props.isOpen,props.storeId,token]);
   const redeemCode=async()=>{if(!token)return toast.error("Login terlebih dahulu untuk menukar kode");const response=await fetch('/api/promos/claim-code',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({storeId:props.storeId,code:promoCode})});const result=await response.json();if(!response.ok)return toast.error(result.error||'Kode tidak valid');const claim={...result.data,promo:result.data.promo} as PromoClaim;setClaims(prev=>[claim,...prev]);setPromoClaimId(claim.id);setPromoCode('');toast.success('Promo berhasil ditambahkan dan dipilih')};
   const createOrder=async()=>{
@@ -36,12 +37,16 @@ export default function PaymentModal(props:Props) {
   const pay=async()=>{
     if(!method){toast.error("Pilih metode pembayaran");return;}
     if(method==="wallet"&&(!token||!user?.email)){toast.error("Login akun diperlukan untuk menggunakan saldo");return;}
+    // Open synchronously from the click gesture so browsers do not block it.
+    const waitingWindow = method === "snap" ? window.open("about:blank", "_blank") : null;
+    if (waitingWindow) { waitingWindow.blur(); window.focus(); }
+    let snapOrderId: string | null = null;
     setProcessing(true);
     try{
       // Load Snap before creating an order so a slow SDK cannot leave behind
       // an unpaid order when the customer taps checkout immediately.
       const snapClient=method==="snap"?await loadMidtransSnap():null;
-      const order=await createOrder(); props.onOrderCreated?.(order.id,order.number,order.total);
+      const order=await createOrder(); snapOrderId=order.id; props.onOrderCreated?.(order.id,order.number,order.total);
       if(method==="cash"){
         const response=await fetch("/api/payment/cash",{method:"POST",headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify({orderId:order.id,sessionId:localStorage.getItem("selforder_session_id")})});
         const result=await response.json(); if(!response.ok) throw new Error(result.error||"Gagal membuat pembayaran tunai");
@@ -56,8 +61,30 @@ export default function PaymentModal(props:Props) {
       const response=await fetch("/api/payment/midtrans",{method:"POST",headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify({orderId:order.id,sessionId:localStorage.getItem("selforder_session_id")})});
       const result=await response.json(); if(!response.ok) throw new Error(result.error||"Gagal membuka Midtrans Snap");
       if(!snapClient) throw new Error("Midtrans Snap belum siap");
-      snapClient.pay(result.data.token,{onSuccess:()=>{props.onPaymentComplete("snap");openWaiting(order.id);},onPending:()=>{props.onPaymentComplete("snap");openWaiting(order.id);},onError:()=>openWaiting(order.id),onClose:()=>openWaiting(order.id)});
-    }catch(error){toast.error(error instanceof Error?error.message:"Pembayaran gagal");setProcessing(false);}
+      const waitingUrl = `/orders/${encodeURIComponent(order.id)}/waiting`;
+      if (waitingWindow && !waitingWindow.closed) waitingWindow.location.replace(waitingUrl);
+      sessionStorage.setItem("selforder_pending_snap_order", order.id);
+      let returned = false;
+      const returnToWaiting = () => {
+        if (returned) return;
+        returned = true;
+        sessionStorage.removeItem("selforder_pending_snap_order");
+        props.onPaymentComplete("snap");
+        if (waitingWindow && !waitingWindow.closed) waitingWindow.focus();
+        else window.location.assign(waitingUrl);
+      };
+      snapClient.pay(result.data.token,{onSuccess:returnToWaiting,onPending:returnToWaiting,onError:returnToWaiting,onClose:returnToWaiting});
+    }catch(error){
+      if (method === "snap" && snapOrderId) {
+        sessionStorage.setItem("selforder_pending_snap_order", snapOrderId);
+        const waitingUrl = `/orders/${encodeURIComponent(snapOrderId)}/waiting`;
+        if (waitingWindow && !waitingWindow.closed) waitingWindow.location.replace(waitingUrl);
+        else openWaiting(snapOrderId);
+        return;
+      }
+      if (waitingWindow && !waitingWindow.closed) waitingWindow.close();
+      toast.error(error instanceof Error?error.message:"Pembayaran gagal");setProcessing(false);
+    }
   };
   return <AnimatePresence>{props.isOpen&&<motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-[110] flex items-end bg-navy-950/70 p-0 backdrop-blur-md sm:items-center sm:p-4">
     <motion.div initial={{y:80,opacity:0}} animate={{y:0,opacity:1}} className="mx-auto w-full max-w-md overflow-hidden rounded-t-[2rem] bg-white shadow-2xl sm:rounded-[2rem]">

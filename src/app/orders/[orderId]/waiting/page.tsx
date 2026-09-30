@@ -23,6 +23,7 @@ export default function WaitingPage(){
     const result=await response.json(); if(!response.ok){setError(result.error||"Pesanan tidak ditemukan");return;}
     setOrder(result.data); setError("");
   },[orderId,token]);
+  useEffect(()=>{if(sessionStorage.getItem("selforder_pending_snap_order")===orderId)sessionStorage.removeItem("selforder_pending_snap_order")},[orderId]);
   useEffect(()=>{fetchOrder();const timer=setInterval(fetchOrder,4000);return()=>clearInterval(timer);},[fetchOrder]);
   useEffect(()=>{setSoundEnabled(localStorage.getItem("selforder_call_sound")!=="off");setAudioUnlocked(localStorage.getItem("selforder_audio_unlocked")==="yes");},[]);
   useEffect(()=>{if(order?.cash_code&&barcodeRef.current) JsBarcode(barcodeRef.current,order.cash_code,{format:"CODE128",displayValue:true,width:2.6,height:104,margin:14,fontSize:17,fontOptions:"bold",background:"#ffffff",lineColor:"#000000"});},[order?.cash_code]);

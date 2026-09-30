@@ -26,6 +26,18 @@ export default function MenuPageContent(){
   const load=useCallback(async()=>{setLoading(true);setError("");try{let resolved=storeId;const storesResponse=await fetch("/api/stores");const storesResult=await storesResponse.json();const available:StoreInfo[]=storesResult.data??[];setStoreOptions(available);if(!resolved){resolved=available[0]?.id||"";if(resolved)setActiveStoreId(resolved);}if(!resolved)throw new Error("Belum ada toko aktif");const [s,c,m]=await Promise.all([fetch(`/api/stores/${resolved}`),fetch(`/api/menu/categories?storeId=${resolved}`),fetch(`/api/menu/items?storeId=${resolved}`)]);if(!s.ok||!c.ok||!m.ok)throw new Error();setStore((await s.json()).data);setCategories((await c.json()).data??[]);setItems((await m.json()).data??[]);}catch(error){setError(error instanceof Error&&error.message==="Belum ada toko aktif"?error.message:"Menu belum berhasil dimuat. Periksa koneksi lalu coba lagi.");}finally{setLoading(false)}},[storeId]);
   useEffect(()=>{load()},[load]);
   useEffect(()=>{const refresh=window.setInterval(()=>{void load()},60_000);return()=>window.clearInterval(refresh)},[load]);
+  useEffect(()=>{
+    const recoverPendingSnap=()=>{
+      if(document.visibilityState!=="visible")return;
+      const orderId=sessionStorage.getItem("selforder_pending_snap_order");
+      if(!orderId)return;
+      sessionStorage.removeItem("selforder_pending_snap_order");
+      window.location.replace(`/orders/${encodeURIComponent(orderId)}/waiting`);
+    };
+    window.addEventListener("pageshow",recoverPendingSnap);
+    document.addEventListener("visibilitychange",recoverPendingSnap);
+    return()=>{window.removeEventListener("pageshow",recoverPendingSnap);document.removeEventListener("visibilitychange",recoverPendingSnap)};
+  },[]);
   useEffect(()=>{if(storeId)localStorage.setItem("selforder_store_id",storeId)},[storeId]);
   useEffect(()=>{if(!localStorage.getItem("selforder_session_id"))localStorage.setItem("selforder_session_id",crypto.randomUUID());const dark=localStorage.getItem("selforder_theme")==="dark";document.documentElement.classList.toggle("dark",dark)},[]);
   const reorder=params.get("reorder");

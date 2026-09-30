@@ -103,6 +103,9 @@ export async function POST(request: NextRequest) {
       customerName: order.customer_name ?? "Customer",
       customerEmail: order.customer_email ?? "",
       customerPhone: order.customer_phone ?? "",
+      // Use the host that received checkout so Midtrans returns to the
+      // correct production/preview deployment even if APP_URL is stale.
+      finishUrl: new URL(`/orders/${orderId}/waiting`, request.nextUrl.origin).toString(),
     });
 
     // Store snap token in order
