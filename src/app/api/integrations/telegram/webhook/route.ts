@@ -68,7 +68,32 @@ export async function POST(request: NextRequest) {
         const { error } = await supabaseAdmin.from("telegram_user_sessions").update({ state: "awaiting_message", topic, updated_at: new Date().toISOString() }).eq("telegram_chat_id", chatId);
         if (error) throw error;
         await writeTelegramActivity({ eventType: "topic_selected", actorType: "customer", chatId, telegramUserId: userId, username, storeId: session.store_id, details: { topic }, updateId });
-        await sendMessage(chatId, "Silakan tulis pesan Anda. Pesan ini akan diteruskan ke admin cabang.");
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+        const menuUrl = new URL(`/menu?store=${encodeURIComponent(session.store_id)}`, appUrl).toString();
+        const reservationUrl = new URL(`/reservations/new?store=${encodeURIComponent(session.store_id)}`, appUrl).toString();
+        const prompt = topic === "menu"
+          ? "Berikut menu cabang. Jika perlu bantuan tentang menu, tulis pertanyaan Anda di chat ini."
+          : topic === "reservation"
+            ? "Untuk membuat reservasi, buka halaman reservasi. Untuk bertanya tentang DP atau jadwal, tulis pesan Anda di chat ini."
+            : topic === "order"
+              ? "Untuk bantuan pesanan, tulis nomor pesanan dan kendalanya di chat ini agar admin cabang dapat memeriksa."
+              : "Jelaskan kebutuhan Anda di chat ini. Pesan akan masuk ke admin cabang.";
+        const keyboard = topic === "menu"
+          ? { inline_keyboard: [[{ text: "Buka menu cabang", url: menuUrl }], [{ text: "Tulis ke admin", callback_data: "support:menu" }]] }
+          : topic === "reservation"
+            ? { inline_keyboard: [[{ text: "Buat reservasi", url: reservationUrl }], [{ text: "Tanya admin", callback_data: "support:reservation" }]] }
+            : { inline_keyboard: [[{ text: "Kirim pesan ke admin", callback_data: `support:${topic}` }]] };
+        await sendMessage(chatId, prompt, keyboard);
+      } else if (data.startsWith("support:")) {
+        const topic = data.slice(8);
+        const { data: session } = await supabaseAdmin.from("telegram_user_sessions").select("store_id").eq("telegram_chat_id", chatId).maybeSingle();
+        if (!session?.store_id) {
+          await sendMessage(chatId, "Mulai dengan /start, lalu pilih cabang dan topik chat.");
+          return NextResponse.json({ ok: true });
+        }
+        const { error } = await supabaseAdmin.from("telegram_user_sessions").update({ state: "awaiting_message", topic, updated_at: new Date().toISOString() }).eq("telegram_chat_id", chatId);
+        if (error) throw error;
+        await sendMessage(chatId, topic === "order" ? "Sekarang kirim nomor pesanan dan kendalanya." : "Sekarang tulis pertanyaan Anda; pesan akan diteruskan ke admin cabang.");
       }
       return NextResponse.json({ ok: true });
     }

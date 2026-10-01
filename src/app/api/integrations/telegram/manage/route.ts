@@ -5,7 +5,7 @@ import { writeTelegramActivity } from "@/lib/telegram-activity";
 
 export const dynamic = "force-dynamic";
 
-function ownerOnly(request: NextRequest) {
+function managerOnly(request: NextRequest) {
   return getAuthUser(request);
 }
 
@@ -22,8 +22,9 @@ async function telegramRequest(token: string, method: string, payload?: Record<s
 }
 
 export async function GET(request: NextRequest) {
-  const user = await ownerOnly(request);
-  if (user?.role !== "owner") return NextResponse.json({ error: "Akses khusus owner" }, { status: 403 });
+  const user = await managerOnly(request);
+  if (!user || !["owner", "admin"].includes(user.role)) return NextResponse.json({ error: "Akses khusus owner/admin cabang" }, { status: 403 });
+  if (user.role === "admin" && !user.storeId) return NextResponse.json({ error: "Admin belum ditetapkan ke cabang" }, { status: 403 });
 
   const token = process.env.TELEGRAM_BOT_TOKEN || "";
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET || "";
@@ -37,11 +38,13 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const { data: activities, error } = await supabaseAdmin
+  let activityQuery = supabaseAdmin
     .from("telegram_bot_activity")
     .select("id,event_type,actor_type,actor_user_id,telegram_chat_id,telegram_user_id,username,store_id,details,created_at,store:stores(name),actor:users(name,email)")
     .order("created_at", { ascending: false })
     .limit(100);
+  if (user.role === "admin") activityQuery = activityQuery.eq("store_id", user.storeId!);
+  const { data: activities, error } = await activityQuery;
   if (error) return NextResponse.json({ error: "Gagal memuat aktivitas Telegram. Pastikan migrasi advanced sudah dijalankan." }, { status: 500 });
 
   const eventCounts = (activities || []).reduce<Record<string, number>>((counts, activity) => {
@@ -62,8 +65,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await ownerOnly(request);
-  if (user?.role !== "owner") return NextResponse.json({ error: "Akses khusus owner" }, { status: 403 });
+  const user = await managerOnly(request);
+  if (!user || !["owner", "admin"].includes(user.role)) return NextResponse.json({ error: "Akses khusus owner/admin cabang" }, { status: 403 });
+  if (user.role === "admin" && !user.storeId) return NextResponse.json({ error: "Admin belum ditetapkan ke cabang" }, { status: 403 });
   const token = process.env.TELEGRAM_BOT_TOKEN || "";
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET || "";
   if (!token || !secret) {
@@ -79,7 +83,7 @@ export async function POST(request: NextRequest) {
       allowed_updates: ["message", "callback_query"],
       drop_pending_updates: false,
     });
-    await writeTelegramActivity({ eventType: "webhook_activated", actorType: "system", actorUserId: user.userId, details: { url: webhookUrl } });
+    await writeTelegramActivity({ eventType: "webhook_activated", actorType: "system", actorUserId: user.userId, storeId: user.role === "admin" ? user.storeId : null, details: { url: webhookUrl } });
     const webhookInfo = await telegramRequest(token, "getWebhookInfo");
     return NextResponse.json({ data: { webhookInfo } });
   } catch (error) {

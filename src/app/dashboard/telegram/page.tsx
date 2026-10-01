@@ -53,6 +53,7 @@ const relation = <T,>(value?: T | T[] | null): T | null => Array.isArray(value) 
 export default function TelegramInboxPage() {
   const { token, user } = useAuth();
   const isOwner = user?.role === "owner";
+  const canManageBot = isOwner || user?.role === "admin";
   const [chats, setChats] = useState<Chat[]>([]);
   const [selected, setSelected] = useState("");
   const [draft, setDraft] = useState("");
@@ -72,14 +73,14 @@ export default function TelegramInboxPage() {
   }, [token, user?.store_id]);
 
   const loadBot = useCallback(async () => {
-    if (!token || !isOwner) return;
+    if (!token || !canManageBot) return;
     const response = await fetch("/api/integrations/telegram/manage", { headers: getAuthHeaders(token), cache: "no-store" });
     const result = await response.json();
     if (response.ok) {
       setBotState(result.data);
       setBotError("");
     } else setBotError(result.error || "Gagal memuat status bot");
-  }, [token, isOwner]);
+  }, [token, canManageBot]);
 
   useEffect(() => {
     void loadInbox();
@@ -88,11 +89,11 @@ export default function TelegramInboxPage() {
   }, [loadInbox]);
 
   useEffect(() => {
-    if (!isOwner) return;
+    if (!canManageBot) return;
     void loadBot();
     const timer = window.setInterval(() => void loadBot(), 30000);
     return () => window.clearInterval(timer);
-  }, [isOwner, loadBot]);
+  }, [canManageBot, loadBot]);
 
   const active = chats.find(chat => chat.id === selected) || chats[0];
 
@@ -140,12 +141,12 @@ export default function TelegramInboxPage() {
         <button onClick={() => void loadInbox()} className="rounded-xl border p-2" aria-label="Muat ulang inbox"><RefreshCw size={18} /></button>
       </div>
 
-      {isOwner && (
+      {canManageBot && (
         <section className="mt-5 rounded-2xl border bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2"><Activity size={18} /><h2 className="font-bold">Kontrol bot & webhook</h2></div>
-              <p className="mt-1 text-sm text-slate-500">Aktifkan webhook Telegram dan pantau aktivitas bot dari semua cabang.</p>
+              <p className="mt-1 text-sm text-slate-500">{isOwner ? "Aktifkan webhook Telegram dan pantau aktivitas bot dari semua cabang." : "Aktifkan webhook Telegram dan pantau aktivitas bot untuk cabang Anda."}</p>
             </div>
             <div className="flex gap-2">
               <button onClick={() => void loadBot()} className="rounded-xl border p-2" aria-label="Perbarui status bot"><RefreshCw size={18} /></button>
