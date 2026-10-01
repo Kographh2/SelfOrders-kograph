@@ -225,12 +225,29 @@ CREATE TABLE IF NOT EXISTS telegram_messages (
   telegram_message_id BIGINT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE TABLE IF NOT EXISTS telegram_bot_activity (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  event_type TEXT NOT NULL,
+  actor_type TEXT NOT NULL CHECK(actor_type IN ('system','bot','customer','admin')),
+  actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  telegram_chat_id BIGINT,
+  telegram_user_id BIGINT,
+  username TEXT,
+  store_id UUID REFERENCES stores(id) ON DELETE SET NULL,
+  details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  telegram_update_id BIGINT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 CREATE INDEX IF NOT EXISTS telegram_conversations_store_idx ON telegram_conversations(store_id,status,updated_at DESC);
 CREATE INDEX IF NOT EXISTS telegram_messages_conversation_idx ON telegram_messages(conversation_id,created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS telegram_messages_update_dedupe_idx ON telegram_messages(conversation_id,telegram_message_id) WHERE telegram_message_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS telegram_bot_activity_created_idx ON telegram_bot_activity(created_at DESC);
+CREATE INDEX IF NOT EXISTS telegram_bot_activity_store_idx ON telegram_bot_activity(store_id,created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS telegram_bot_activity_update_dedupe_idx ON telegram_bot_activity(telegram_update_id) WHERE telegram_update_id IS NOT NULL;
 ALTER TABLE telegram_user_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE telegram_conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE telegram_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE telegram_bot_activity ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE reservations ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK(deposit_amount>=0);
 ALTER TABLE reservations ADD COLUMN IF NOT EXISTS deposit_status TEXT NOT NULL DEFAULT 'pending' CHECK(deposit_status IN ('pending','paid','failed','not_required'));

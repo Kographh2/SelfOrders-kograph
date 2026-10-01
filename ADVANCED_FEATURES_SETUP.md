@@ -8,7 +8,7 @@ Reservation DP uses the existing Midtrans Snap credentials and notification URL 
 
 ## Telegram multi-branch inbox
 
-Set server-only `TELEGRAM_BOT_TOKEN` and a random `TELEGRAM_WEBHOOK_SECRET` in the deployment environment. Point the bot webhook to `https://YOUR_HOST/api/integrations/telegram/webhook` and pass the same secret as Telegram's `secret_token` when registering the webhook. `/start` lists active branches with their address, then topic buttons route customer messages to the branch inbox in Dashboard → Chat Telegram. Replies are sent by the one shared bot; staff can only read/reply to their assigned branch. Telegram's native inline-keyboard colors are controlled by each user's Telegram theme, not the bot API; the connected dashboard uses the navy SelfOrder theme.
+Set server-only `TELEGRAM_BOT_TOKEN` and a random `TELEGRAM_WEBHOOK_SECRET` in the deployment environment. The owner can activate and inspect the webhook from Dashboard > Chat Telegram; the server registers `https://YOUR_HOST/api/integrations/telegram/webhook` and passes the same secret as Telegram's `secret_token`. Set `TELEGRAM_WEBHOOK_URL` only to override the domain detected from the dashboard request. `/start` lists active branches with their address, then topic buttons route customer messages to the branch inbox in Dashboard → Chat Telegram. Replies are sent by the one shared bot; staff can only read/reply to their assigned branch. The owner activity log includes bot commands, branch/topic selections, customer messages, staff replies, and webhook activation. Telegram's native inline-keyboard colors are controlled by each user's Telegram theme, not the bot API; the connected dashboard uses the navy SelfOrder theme.
 
 ## Thermal ESC/POS printer
 
