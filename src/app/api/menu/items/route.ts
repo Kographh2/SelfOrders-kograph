@@ -40,7 +40,6 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
 
-    await writeAudit(user!,storeId,"menu.create","menu_item",data.id,null,data);
     const visible = managementView ? data ?? [] : (data ?? []).filter(item => isMenuScheduledNow(item, timezone));
     return NextResponse.json({ data: visible }, { status: 200 });
   } catch (error: unknown) {
@@ -114,6 +113,8 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) throw error;
+
+    await writeAudit(user!, storeId, "menu.create", "menu_item", data.id, null, data);
 
     return NextResponse.json({ data }, { status: 201 });
   } catch (error: unknown) {
