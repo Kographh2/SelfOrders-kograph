@@ -134,7 +134,8 @@ DROP TRIGGER IF EXISTS orders_release_ingredients_before_delete ON orders;
 CREATE TRIGGER orders_release_ingredients_before_delete BEFORE DELETE ON orders
   FOR EACH ROW EXECUTE FUNCTION release_deleted_order_ingredients();
 
--- Phone-verified reservations. API verifies Supabase Auth phone_confirmed_at.
+-- Phone-verified reservations. The API accepts legacy confirmed Supabase Auth
+-- phone sessions and the Telegram reservation OTP flow.
 CREATE TABLE IF NOT EXISTS reservations (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
@@ -238,16 +239,43 @@ CREATE TABLE IF NOT EXISTS telegram_bot_activity (
   telegram_update_id BIGINT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- Telegram account links and short-lived reservation OTP challenges.
+CREATE TABLE IF NOT EXISTS telegram_phone_links (
+  phone TEXT PRIMARY KEY,
+  telegram_chat_id BIGINT NOT NULL UNIQUE,
+  telegram_user_id BIGINT NOT NULL,
+  username TEXT,
+  confirmed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS telegram_reservation_otps (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  phone TEXT NOT NULL,
+  telegram_chat_id BIGINT NOT NULL,
+  telegram_user_id BIGINT NOT NULL,
+  otp_hash TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'awaiting_confirmation' CHECK(status IN ('awaiting_confirmation','sent','verified','cancelled','expired','failed')),
+  attempts INTEGER NOT NULL DEFAULT 0 CHECK(attempts BETWEEN 0 AND 5),
+  access_token_hash TEXT UNIQUE,
+  access_token_expires_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ NOT NULL,
+  confirmed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 CREATE INDEX IF NOT EXISTS telegram_conversations_store_idx ON telegram_conversations(store_id,status,updated_at DESC);
 CREATE INDEX IF NOT EXISTS telegram_messages_conversation_idx ON telegram_messages(conversation_id,created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS telegram_messages_update_dedupe_idx ON telegram_messages(conversation_id,telegram_message_id) WHERE telegram_message_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS telegram_bot_activity_created_idx ON telegram_bot_activity(created_at DESC);
 CREATE INDEX IF NOT EXISTS telegram_bot_activity_store_idx ON telegram_bot_activity(store_id,created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS telegram_bot_activity_update_dedupe_idx ON telegram_bot_activity(telegram_update_id) WHERE telegram_update_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS telegram_reservation_otps_phone_created_idx ON telegram_reservation_otps(phone,created_at DESC);
+CREATE INDEX IF NOT EXISTS telegram_reservation_otps_chat_status_idx ON telegram_reservation_otps(telegram_chat_id,status,created_at DESC);
 ALTER TABLE telegram_user_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE telegram_conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE telegram_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE telegram_bot_activity ENABLE ROW LEVEL SECURITY;
+ALTER TABLE telegram_phone_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE telegram_reservation_otps ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE reservations ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK(deposit_amount>=0);
 ALTER TABLE reservations ADD COLUMN IF NOT EXISTS deposit_status TEXT NOT NULL DEFAULT 'pending' CHECK(deposit_status IN ('pending','paid','failed','not_required'));

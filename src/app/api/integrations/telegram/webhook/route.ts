@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHmac, randomInt } from "crypto";
+import { normalizePhone } from "@/lib/reservation-phone";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { writeTelegramActivity } from "@/lib/telegram-activity";
 
@@ -40,7 +42,40 @@ export async function POST(request: NextRequest) {
       if (!Number.isSafeInteger(chatId) || !Number.isSafeInteger(userId)) return NextResponse.json({ ok: true });
       await telegramCall("answerCallbackQuery", { callback_query_id: callback.id });
 
-      if (data.startsWith("store:")) {
+      if (data.startsWith("reserve:yes:") || data.startsWith("reserve:no:")) {
+        const [, choice, challengeId] = data.split(":");
+        const { data: challenge } = await supabaseAdmin.from("telegram_reservation_otps")
+          .select("id,phone,otp_hash,status,expires_at")
+          .eq("id", challengeId).eq("telegram_chat_id", chatId).eq("telegram_user_id", userId)
+          .in("status", ["awaiting_confirmation", "sent"]).gt("expires_at", new Date().toISOString()).maybeSingle();
+        if (!challenge) {
+          await sendMessage(chatId, "Permintaan ini sudah kedaluwarsa atau tidak valid. Silakan minta OTP baru dari halaman reservasi.");
+          return NextResponse.json({ ok: true });
+        }
+        if (challenge.status === "sent" && choice === "yes") {
+          await sendMessage(chatId, "Kode OTP sudah dikirim sebelumnya. Periksa chat ini untuk melihatnya.");
+          return NextResponse.json({ ok: true });
+        }
+        if (choice === "no") {
+          await supabaseAdmin.from("telegram_reservation_otps").update({ status: "cancelled" }).eq("id", challenge.id).eq("status", challenge.status);
+          await sendMessage(chatId, "Permintaan dibatalkan. Jika ini bukan Anda, abaikan pesan ini dan jangan bagikan kode apa pun.");
+          return NextResponse.json({ ok: true });
+        }
+        const codeSecret = process.env.TELEGRAM_OTP_SECRET || process.env.JWT_SECRET;
+        if (!codeSecret) throw new Error("TELEGRAM_OTP_SECRET atau JWT_SECRET belum dikonfigurasi");
+        const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
+        const otpHash = createHmac("sha256", codeSecret).update(`${challenge.id}:${code}`).digest("hex");
+        const { data: updated } = await supabaseAdmin.from("telegram_reservation_otps")
+          .update({ status: "sent", otp_hash: otpHash, expires_at: new Date(Date.now() + 5 * 60_000).toISOString() }).eq("id", challenge.id).eq("status", "awaiting_confirmation")
+          .select("id").maybeSingle();
+        if (!updated) {
+          await sendMessage(chatId, "Permintaan ini sudah diproses. Silakan minta OTP baru jika perlu.");
+          return NextResponse.json({ ok: true });
+        }
+        await writeTelegramActivity({ eventType: "reservation_otp_confirmed", actorType: "customer", chatId, telegramUserId: userId, username, details: { phoneLast4: challenge.phone.slice(-4) }, updateId });
+        await sendMessage(chatId, `Kode OTP reservasi Anda: ${code}\nBerlaku 5 menit. Jangan bagikan kode ini kepada siapa pun.`);
+        return NextResponse.json({ ok: true });
+      } else if (data.startsWith("store:")) {
         const storeId = data.slice(6);
         const { data: store } = await supabaseAdmin.from("stores").select("id,name,address").eq("id", storeId).eq("is_active", true).maybeSingle();
         if (!store) return NextResponse.json({ ok: true });
@@ -105,6 +140,41 @@ export async function POST(request: NextRequest) {
     const username = message.from?.username || null;
     const text = String(message.text || "").trim().slice(0, 4000);
     if (!Number.isSafeInteger(chatId) || !Number.isSafeInteger(userId)) return NextResponse.json({ ok: true });
+
+    if (/^\/link(?:@\w+)?(?:\s|$)/.test(text)) {
+      if (message.chat?.type !== "private") {
+        await sendMessage(chatId, "Untuk menautkan nomor, buka chat pribadi dengan bot lalu kirim /link.");
+        return NextResponse.json({ ok: true });
+      }
+      await sendMessage(chatId, "Untuk menautkan nomor HP reservasi, tekan tombol di bawah dan bagikan kontak Anda sendiri.", {
+        keyboard: [[{ text: "Bagikan nomor HP saya", request_contact: true }]],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (message.contact) {
+      const contact = message.contact;
+      if (Number(contact.user_id) !== userId || message.chat?.type !== "private") {
+        await sendMessage(chatId, "Demi keamanan, bagikan kontak Anda sendiri langsung ke chat pribadi bot.", { remove_keyboard: true });
+        return NextResponse.json({ ok: true });
+      }
+      const phone = normalizePhone(String(contact.phone_number || ""));
+      if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+        await sendMessage(chatId, "Nomor kontak tidak valid. Coba bagikan kontak Anda lagi.", { remove_keyboard: true });
+        return NextResponse.json({ ok: true });
+      }
+      await supabaseAdmin.from("telegram_phone_links").delete().eq("telegram_chat_id", chatId).neq("phone", phone);
+      const { error } = await supabaseAdmin.from("telegram_phone_links").upsert({
+        phone, telegram_chat_id: chatId, telegram_user_id: userId, username,
+        confirmed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      }, { onConflict: "phone" });
+      if (error) throw error;
+      await writeTelegramActivity({ eventType: "reservation_phone_linked", actorType: "customer", chatId, telegramUserId: userId, username, details: { phoneLast4: phone.slice(-4) }, updateId });
+      await sendMessage(chatId, `Nomor ${phone} sudah ditautkan. Anda dapat meminta OTP reservasi dengan nomor ini.`, { remove_keyboard: true });
+      return NextResponse.json({ ok: true });
+    }
 
     if (text.startsWith("/start") || text.startsWith("/cabang")) {
       const { data: stores, error } = await supabaseAdmin.from("stores").select("id,name,address").eq("is_active", true).order("name");

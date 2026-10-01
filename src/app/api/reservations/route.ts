@@ -5,10 +5,11 @@ import { getStoreOperatingStatus } from "@/lib/store-hours";
 import { writeAudit } from "@/lib/audit";
 import { randomBytes,createHash } from "crypto";
 import { createSnapTransaction } from "@/lib/midtrans";
+import { getVerifiedReservationPhone } from "@/lib/reservation-phone";
 
 export async function GET(request: NextRequest) {
   const reservationId=request.nextUrl.searchParams.get("reservationId");
-  if(reservationId){const accessToken=request.headers.get("x-phone-access-token")||"",{data:authData,error:authError}=accessToken?await supabaseAdmin.auth.getUser(accessToken):{data:{user:null},error:new Error("OTP required")};const phone=authData?.user?.phone;if(authError||!phone||!authData?.user?.phone_confirmed_at)return NextResponse.json({error:"Verifikasi HP diperlukan"},{status:401});const {data:reservation}=await supabaseAdmin.from("reservations").select("id,store_id,customer_name,phone,party_size,reserved_for,hold_until,table_id,deposit_status,deposit_amount,private_token_hash,table:tables(number)").eq("id",reservationId).eq("phone",phone).maybeSingle();if(!reservation)return NextResponse.json({error:"Reservasi tidak ditemukan"},{status:404});const {data:store}=await supabaseAdmin.from("stores").select("name").eq("id",reservation.store_id).maybeSingle();const rawToken=request.nextUrl.searchParams.get("privateToken")||"";const validPrivate=Boolean(rawToken&&createHash("sha256").update(rawToken).digest("hex")===reservation.private_token_hash);const privateUrl=["paid","not_required"].includes(reservation.deposit_status)&&validPrivate?new URL(`/reservations/private/${rawToken}`,request.nextUrl.origin).toString():null;return NextResponse.json({data:{...reservation,store,privateUrl}})}
+  if(reservationId){const accessToken=request.headers.get("x-phone-access-token")||"",phone=await getVerifiedReservationPhone(accessToken);if(!phone)return NextResponse.json({error:"Verifikasi HP diperlukan"},{status:401});const {data:reservation}=await supabaseAdmin.from("reservations").select("id,store_id,customer_name,phone,party_size,reserved_for,hold_until,table_id,deposit_status,deposit_amount,private_token_hash,table:tables(number)").eq("id",reservationId).eq("phone",phone).maybeSingle();if(!reservation)return NextResponse.json({error:"Reservasi tidak ditemukan"},{status:404});const {data:store}=await supabaseAdmin.from("stores").select("name").eq("id",reservation.store_id).maybeSingle();const rawToken=request.nextUrl.searchParams.get("privateToken")||"";const validPrivate=Boolean(rawToken&&createHash("sha256").update(rawToken).digest("hex")===reservation.private_token_hash);const privateUrl=["paid","not_required"].includes(reservation.deposit_status)&&validPrivate?new URL(`/reservations/private/${rawToken}`,request.nextUrl.origin).toString():null;return NextResponse.json({data:{...reservation,store,privateUrl}})}
   const user = await getAuthUser(request), storeId = request.nextUrl.searchParams.get("storeId") || user?.storeId;
   if (!isStaff(user) || !storeId || !hasStoreAccess(user, storeId)) return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
   await supabaseAdmin.from("reservations").update({status:"no_show",updated_at:new Date().toISOString()}).eq("store_id",storeId).eq("status","confirmed").lt("hold_until",new Date().toISOString());
@@ -21,14 +22,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const bearer = request.headers.get("x-phone-access-token") || "";
-  const { data: authData, error: authError } = bearer ? await supabaseAdmin.auth.getUser(bearer) : { data: { user: null }, error: new Error("Phone verification required") };
-  const verified = authData?.user;
-  if (authError || !verified?.phone || !verified.phone_confirmed_at) return NextResponse.json({ error: "Verifikasi nomor HP diperlukan" }, { status: 401 });
+  const verifiedPhone = await getVerifiedReservationPhone(bearer);
+  if (!verifiedPhone) return NextResponse.json({ error: "Verifikasi nomor HP diperlukan" }, { status: 401 });
   const storeId = String(body.storeId || ""), reservedFor = new Date(body.reservedFor), partySize = Number(body.partySize);
   if (!storeId || !Number.isFinite(reservedFor.getTime()) || reservedFor.getTime() < Date.now()+30*60000 || reservedFor.getTime() > Date.now()+30*86400000 || !Number.isInteger(partySize) || partySize < 1 || partySize > 30) return NextResponse.json({ error: "Waktu reservasi atau jumlah orang tidak valid" }, { status: 400 });
   const { data: store } = await supabaseAdmin.from("stores").select("id,name,is_active,manual_closed,opening_hours,timezone,reservation_deposit_per_guest").eq("id",storeId).maybeSingle();
   if (!store || !getStoreOperatingStatus(store,reservedFor).is_open) return NextResponse.json({ error: "Cabang tutup pada waktu tersebut" }, { status: 409 });
-  const { count } = await supabaseAdmin.from("reservations").select("id",{count:"exact",head:true}).eq("phone",verified.phone).gte("reserved_for",new Date().toISOString()).not("status","in","(cancelled,no_show)");
+  const { count } = await supabaseAdmin.from("reservations").select("id",{count:"exact",head:true}).eq("phone",verifiedPhone).gte("reserved_for",new Date().toISOString()).not("status","in","(cancelled,no_show)");
   if ((count || 0) >= 2) return NextResponse.json({ error: "Maksimal dua reservasi aktif per nomor HP" }, { status: 429 });
   const customerName=String(body.customerName||"").trim();if(!customerName)return NextResponse.json({error:"Nama wajib diisi"},{status:400});
   const depositAmount=Math.max(0,Number(store.reservation_deposit_per_guest||0)*partySize);const rawPrivateToken=randomBytes(32).toString("base64url"),privateHash=createHash("sha256").update(rawPrivateToken).digest("hex");
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     p_store_id: storeId,
     p_requested_table_id: body.tableId ? String(body.tableId) : null,
     p_customer_name: customerName.slice(0,100),
-    p_phone: verified.phone,
+    p_phone: verifiedPhone,
     p_party_size: partySize,
     p_reserved_for: reservedFor.toISOString(),
     p_hold_until: new Date(reservedFor.getTime()+15*60000).toISOString(),
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({error:message},{status});
   }
   if(depositAmount<=0)return NextResponse.json({data:{reservation:data,privateToken:rawPrivateToken,privateUrl:new URL(`/reservations/private/${rawPrivateToken}`,request.nextUrl.origin).toString()}},{status:201});
-  const externalId=`RES-${data.id}`;try{const transaction=await createSnapTransaction({orderId:externalId,amount:depositAmount,items:[{id:data.id,name:`DP Reservasi ${store.name}`,price:depositAmount,quantity:1}],customerName,customerPhone:verified.phone,finishUrl:new URL(`/reservations/new?store=${storeId}&reservation=${data.id}`,request.nextUrl.origin).toString()});await supabaseAdmin.from("reservations").update({midtrans_order_id:externalId,snap_token:transaction.token}).eq("id",data.id);return NextResponse.json({data:{reservation:data,snapToken:transaction.token,privateToken:rawPrivateToken,privateUrl:null}},{status:201});}catch(error){await supabaseAdmin.from("reservations").update({status:"cancelled",deposit_status:"failed"}).eq("id",data.id);return NextResponse.json({error:error instanceof Error?error.message:"Gagal menyiapkan pembayaran DP"},{status:502});}
+  const externalId=`RES-${data.id}`;try{const transaction=await createSnapTransaction({orderId:externalId,amount:depositAmount,items:[{id:data.id,name:`DP Reservasi ${store.name}`,price:depositAmount,quantity:1}],customerName,customerPhone:verifiedPhone,finishUrl:new URL(`/reservations/new?store=${storeId}&reservation=${data.id}`,request.nextUrl.origin).toString()});await supabaseAdmin.from("reservations").update({midtrans_order_id:externalId,snap_token:transaction.token}).eq("id",data.id);return NextResponse.json({data:{reservation:data,snapToken:transaction.token,privateToken:rawPrivateToken,privateUrl:null}},{status:201});}catch(error){await supabaseAdmin.from("reservations").update({status:"cancelled",deposit_status:"failed"}).eq("id",data.id);return NextResponse.json({error:error instanceof Error?error.message:"Gagal menyiapkan pembayaran DP"},{status:502});}
 }
 
 export async function PATCH(request: NextRequest) {
