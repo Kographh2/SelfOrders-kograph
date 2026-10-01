@@ -1,6 +1,6 @@
 "use client";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { Barcode, Banknote, Camera, CheckCircle2, Loader2, Play, Square } from "lucide-react";
+import { Banknote, Camera, CheckCircle2, Loader2, Play, QrCode, Square } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { getAuthHeaders, useAuth } from "@/contexts/AuthContext";
 
@@ -49,15 +49,15 @@ export default function PosPage() {
       const response = await fetch("/api/payment/cash", { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders(token) }, body: JSON.stringify({ orderId, confirm: true }) });
       const result = await response.json(); if (!response.ok) throw new Error(result.error);
       toast.success(`Pembayaran antrean #${result.data.order_number} terkonfirmasi`); setCode(""); stopScan(); await loadShift();
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Barcode tidak valid"); }
+    } catch (error) { toast.error(error instanceof Error ? error.message : "QR pembayaran tidak valid"); }
     finally { setLoading(false); }
   };
   const startScan = async () => {
     try {
       setScanning(true); await new Promise(resolve => setTimeout(resolve, 50));
       if (!video.current) throw new Error("Scanner belum siap");
-      const { BrowserMultiFormatReader } = await import("@zxing/browser");
-      const reader = new BrowserMultiFormatReader();
+      const { BrowserQRCodeReader } = await import("@zxing/browser");
+      const reader = new BrowserQRCodeReader();
       controls.current = await reader.decodeFromConstraints({ video: { facingMode: { ideal: "environment" } } }, video.current, result => { if (result) { setCode(result.getText()); confirm(result.getText()); } });
     } catch (error) { setScanning(false); toast.error(error instanceof Error ? error.message : "Kamera gagal dibuka"); }
   };
@@ -94,7 +94,7 @@ export default function PosPage() {
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">{!shift?<><input aria-label="Kas awal" type="number" min="0" value={openingCash} onChange={e=>setOpeningCash(e.target.value)} className="min-w-0 flex-1 rounded-xl border p-3" placeholder="Kas awal"/><button onClick={openShift} disabled={shiftBusy} className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-bold text-white"><Play className="h-4 w-4"/>Buka shift</button></>:<><input aria-label="Kas fisik saat ini" type="number" min="0" value={closingCash} onChange={e=>setClosingCash(e.target.value)} className="min-w-0 flex-1 rounded-xl border p-3" placeholder="Kas fisik saat ini"/><button onClick={closeShift} disabled={shiftBusy} className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-3 font-bold text-white"><Square className="h-4 w-4"/>Tutup shift</button></>}</div>
       {!storeId&&<p className="mt-3 text-xs text-amber-700">Pilih cabang untuk membuka shift.</p>}
     </section>
-    <div className="mt-5 grid gap-5 md:grid-cols-2"><section className="rounded-[2rem] bg-white p-6 text-navy-950 shadow-2xl"><div className="mb-5 flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-600 text-white"><Camera/></span><div><h2 className="font-bold">Scanner kamera</h2><p className="text-xs text-navy-500">Barcode pembayaran pelanggan</p></div></div><video ref={video} muted playsInline className={scanning?"aspect-video w-full rounded-2xl bg-black object-cover":"hidden"}/>{scanning?<button onClick={stopScan} className="mt-4 w-full rounded-xl bg-blue-50 py-3 font-bold text-blue-700">Tutup kamera</button>:<button onClick={startScan} disabled={!shift} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-4 font-bold text-white disabled:opacity-40"><Barcode/>Mulai scan barcode</button>}</section>
+    <div className="mt-5 grid gap-5 md:grid-cols-2"><section className="rounded-[2rem] bg-white p-6 text-navy-950 shadow-2xl"><div className="mb-5 flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-600 text-white"><Camera/></span><div><h2 className="font-bold">Scanner kamera</h2><p className="text-xs text-navy-500">Scan QR pembayaran tunai pelanggan</p></div></div><video ref={video} muted playsInline className={scanning?"aspect-video w-full rounded-2xl bg-black object-cover":"hidden"}/>{scanning?<button onClick={stopScan} className="mt-4 w-full rounded-xl bg-blue-50 py-3 font-bold text-blue-700">Tutup kamera</button>:<button onClick={startScan} disabled={!shift} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-4 font-bold text-white disabled:opacity-40"><QrCode/>Mulai scan QR pembayaran</button>}</section>
       <section className="rounded-[2rem] bg-white p-6 text-navy-950 shadow-2xl"><div className="mb-5 flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-600 text-white"><Banknote/></span><div><h2 className="font-bold">Input manual</h2><p className="text-xs text-navy-500">Cadangan jika kamera tidak tersedia</p></div></div><form onSubmit={(e:FormEvent)=>{e.preventDefault();confirm(code)}}><input value={code} onChange={e=>setCode(e.target.value)} placeholder="CASH-xxxxxxxx-..." className="w-full rounded-2xl border-2 border-navy-100 p-4 font-mono outline-none focus:border-blue-500"/><button disabled={!shift||loading||!code} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-navy-950 py-4 font-bold text-white disabled:opacity-40">{loading?<Loader2 className="animate-spin"/>:<CheckCircle2/>}Konfirmasi pembayaran</button></form></section></div>
   </div></main>;
 }

@@ -2,6 +2,9 @@ import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { getAuthUser, isOwnerOrAdmin, hasStoreAccess, isStaff } from "@/lib/auth";
 import { normalizeOptionGroups } from "@/lib/menu-options";
+import { normalizeMenuDays, normalizeMenuSchedule, normalizeMenuTags, normalizeMenuTranslations } from "@/lib/menu-metadata";
+import {writeAudit} from "@/lib/audit";
+import { isMenuScheduledNow } from "@/lib/menu-schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +16,11 @@ export async function GET(request: NextRequest) {
     const categoryId = searchParams.get("categoryId");
     const featured = searchParams.get("featured");
     const managementView = searchParams.get("management") === "true" && isStaff(user);
+    let timezone = "Asia/Jakarta";
+    if (storeId && !managementView) {
+      const { data: store } = await supabaseAdmin.from("stores").select("timezone").eq("id", storeId).maybeSingle();
+      timezone = store?.timezone || timezone;
+    }
 
     let query = supabaseAdmin
       .from("menu_items")
@@ -32,7 +40,9 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
 
-    return NextResponse.json({ data: data ?? [] }, { status: 200 });
+    await writeAudit(user!,storeId,"menu.create","menu_item",data.id,null,data);
+    const visible = managementView ? data ?? [] : (data ?? []).filter(item => isMenuScheduledNow(item, timezone));
+    return NextResponse.json({ data: visible }, { status: 200 });
   } catch (error: unknown) {
     console.error("Menu items GET error:", error);
     return NextResponse.json({ error: "Failed to fetch menu items" }, { status: 500 });
@@ -47,7 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { storeId, categoryId, name, description, price, image, isAvailable, isFeatured, displayOrder, optionGroups, trackStock, stockQuantity, showOnMenu } = body;
+    const { storeId, categoryId, name, description, price, image, isAvailable, isFeatured, displayOrder, optionGroups, trackStock, stockQuantity, showOnMenu, translations, allergens, dietaryTags, availableFrom, availableUntil, availableDays, prepMinutes, isBundle } = body;
 
     if (!storeId || !categoryId || !name?.trim()) {
       return NextResponse.json({ error: "storeId, categoryId and name are required" }, { status: 400 });
@@ -72,6 +82,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Category does not belong to this store" }, { status: 400 });
     }
 
+    const schedule = normalizeMenuSchedule(availableFrom, availableUntil);
+    const prep = Math.floor(Number(prepMinutes ?? 10));
+    if (!Number.isFinite(prep) || prep < 1 || prep > 240) return NextResponse.json({ error: "Waktu persiapan harus 1-240 menit" }, { status: 400 });
     const { data, error } = await supabaseAdmin
       .from("menu_items")
       .insert({
@@ -88,6 +101,14 @@ export async function POST(request: NextRequest) {
         track_stock: Boolean(trackStock),
         stock_quantity: trackStock ? Number(stockQuantity ?? 0) : null,
         show_on_menu: showOnMenu !== false,
+        translations: normalizeMenuTranslations(translations),
+        allergens: normalizeMenuTags(allergens),
+        dietary_tags: normalizeMenuTags(dietaryTags),
+        available_from: schedule.from,
+        available_until: schedule.until,
+        available_days: normalizeMenuDays(availableDays),
+        prep_minutes: prep,
+        is_bundle: Boolean(isBundle),
       })
       .select()
       .single();
@@ -98,7 +119,7 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     console.error("Menu items POST error:", error);
     const message = error instanceof Error ? error.message : "Failed to create menu item";
-    const validationError = /maksimal|belum lengkap|tidak valid/i.test(message);
+    const validationError = /maksimal|belum lengkap|tidak valid|atur jam|waktu persiapan|hari tampil/i.test(message);
     return NextResponse.json({ error: message }, { status: validationError ? 400 : 500 });
   }
 }

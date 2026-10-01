@@ -22,12 +22,23 @@ interface MenuFormData {
   trackStock: boolean;
   stockQuantity: string;
   showOnMenu: boolean;
+  englishName: string;
+  englishDescription: string;
+  allergens: string;
+  dietaryTags: string;
+  availableFrom: string;
+  availableUntil: string;
+  availableDays: number[];
+  prepMinutes: string;
+  isBundle: boolean;
 }
 
 const EMPTY_FORM: MenuFormData = {
   name: "", description: "", price: "", categoryId: "",
   isAvailable: true, isFeatured: false, displayOrder: "0", image: "",
   optionGroups: [], trackStock: false, stockQuantity: "0", showOnMenu: true,
+  englishName: "", englishDescription: "", allergens: "", dietaryTags: "",
+  availableFrom: "", availableUntil: "", availableDays: [0,1,2,3,4,5,6], prepMinutes: "10", isBundle: false,
 };
 
 export default function MenuDashboardPage() {
@@ -84,6 +95,10 @@ export default function MenuDashboardPage() {
       displayOrder: String(item.display_order), image: item.image ?? "",
       optionGroups: item.option_groups ?? [], trackStock: item.track_stock ?? false,
       stockQuantity: String(item.stock_quantity ?? 0), showOnMenu: item.show_on_menu !== false,
+      englishName: item.translations?.en?.name ?? "", englishDescription: item.translations?.en?.description ?? "",
+      allergens: (item.allergens ?? []).join(", "), dietaryTags: (item.dietary_tags ?? []).join(", "),
+      availableFrom: item.available_from?.slice(0,5) ?? "", availableUntil: item.available_until?.slice(0,5) ?? "",
+      availableDays: item.available_days ?? [0,1,2,3,4,5,6], prepMinutes: String(item.prep_minutes ?? 10), isBundle: item.is_bundle ?? false,
     });
     setEditId(item.id);
     setShowForm(true);
@@ -107,6 +122,11 @@ export default function MenuDashboardPage() {
         image: form.image.trim() || null,
         optionGroups: form.optionGroups, trackStock: form.trackStock,
         stockQuantity: Number(form.stockQuantity), showOnMenu: form.showOnMenu,
+        translations: { en: { name: form.englishName, description: form.englishDescription } },
+        allergens: form.allergens.split(",").map(tag => tag.trim()).filter(Boolean),
+        dietaryTags: form.dietaryTags.split(",").map(tag => tag.trim()).filter(Boolean),
+        availableFrom: form.availableFrom || null, availableUntil: form.availableUntil || null,
+        availableDays: form.availableDays, prepMinutes: Number(form.prepMinutes), isBundle: form.isBundle,
       };
       const url = editId ? `/api/menu/items/${editId}` : "/api/menu/items";
       const method = editId ? "PUT" : "POST";
@@ -264,6 +284,7 @@ export default function MenuDashboardPage() {
                 <label className="label-field">Deskripsi</label>
                 <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} className="input-field w-full h-20 resize-none" placeholder="Deskripsi singkat" />
               </div>
+              <details className="rounded-2xl border border-navy-100 bg-white p-4"><summary className="cursor-pointer font-bold">Bahasa Inggris</summary><div className="mt-3 space-y-2"><input value={form.englishName} onChange={e=>setForm(p=>({...p,englishName:e.target.value}))} className="input-field w-full" placeholder="Nama menu (English)"/><textarea value={form.englishDescription} onChange={e=>setForm(p=>({...p,englishDescription:e.target.value}))} className="input-field w-full" placeholder="Description (English)"/></div></details>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label-field">Harga (Rp) *</label>
@@ -310,6 +331,16 @@ export default function MenuDashboardPage() {
                   Tampilkan di menu pelanggan cabang ini
                 </label>
                 <p className="text-xs text-navy-400">Menu yang habis atau disembunyikan tidak akan muncul di halaman pelanggan cabang ini.</p>
+              </section>
+              <section className="space-y-3 rounded-2xl border border-navy-100 bg-white p-4">
+                <h4 className="font-bold text-navy-900">Kebutuhan dan jadwal menu</h4>
+                <label className="block text-xs font-semibold">Alergen (pisahkan koma)<input value={form.allergens} onChange={e=>setForm(p=>({...p,allergens:e.target.value}))} className="input-field mt-1 w-full" placeholder="kacang, susu, gluten"/></label>
+                <label className="block text-xs font-semibold">Label diet (pisahkan koma)<input value={form.dietaryTags} onChange={e=>setForm(p=>({...p,dietaryTags:e.target.value}))} className="input-field mt-1 w-full" placeholder="vegan, vegetarian, halal"/></label>
+                <div className="grid grid-cols-2 gap-2"><label className="text-xs font-semibold">Tampil mulai<input type="time" value={form.availableFrom} onChange={e=>setForm(p=>({...p,availableFrom:e.target.value}))} className="input-field mt-1 w-full"/></label><label className="text-xs font-semibold">Tampil sampai<input type="time" value={form.availableUntil} onChange={e=>setForm(p=>({...p,availableUntil:e.target.value}))} className="input-field mt-1 w-full"/></label></div>
+                <div className="flex flex-wrap gap-2">{["Min","Sen","Sel","Rab","Kam","Jum","Sab"].map((day,index)=><label key={day} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={form.availableDays.includes(index)} onChange={e=>setForm(p=>({...p,availableDays:e.target.checked?[...p.availableDays,index]:p.availableDays.filter(value=>value!==index)}))}/>{day}</label>)}</div>
+                <label className="block text-xs font-semibold">Estimasi persiapan (menit)<input type="number" min="1" max="240" value={form.prepMinutes} onChange={e=>setForm(p=>({...p,prepMinutes:e.target.value}))} className="input-field mt-1 w-full"/></label>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isBundle} onChange={e=>setForm(p=>({...p,isBundle:e.target.checked}))}/>Tandai sebagai paket menu</label>
+                <p className="text-xs text-navy-400">Atur pilihan komponen paket memakai grup pilihan di bawah. Menu hanya tampil pada jam dan hari aktif.</p>
               </section>
               <section className="space-y-3 rounded-2xl border border-navy-100 bg-white p-4">
                 <div className="flex items-center justify-between"><h4 className="font-bold text-navy-900">Varian & tambahan</h4><button type="button" onClick={() => setForm(p => ({ ...p, optionGroups: [...p.optionGroups, { id: crypto.randomUUID(), name: "", required: false, min_select: 0, max_select: 1, options: [{ id: crypto.randomUUID(), name: "", price_delta: 0 }] }] }))} className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">Tambah grup</button></div>

@@ -24,6 +24,8 @@ export async function POST(request: NextRequest) {
     if (orderError || !order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
+    const { data: activeSplit } = await supabaseAdmin.from("split_bills").select("id").eq("order_id", orderId).eq("status", "active").maybeSingle();
+    if (activeSplit) return NextResponse.json({ error: "Pembayaran penuh dinonaktifkan karena pesanan menggunakan split bill" }, { status: 409 });
 
     const requester = await getAuthUser(request);
     const ownsOrder = (requester?.userId && requester.userId === order.user_id) ||

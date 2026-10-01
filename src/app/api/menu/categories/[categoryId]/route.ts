@@ -41,7 +41,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     }
 
     const body = await request.json();
-    const { name, description, displayOrder, isActive } = body;
+    const { name, description, displayOrder, isActive, translations } = body;
 
     const { data, error } = await supabaseAdmin
       .from("categories")
@@ -50,6 +50,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
         ...(description !== undefined && { description: description?.trim() ?? null }),
         ...(displayOrder !== undefined && { display_order: displayOrder }),
         ...(isActive !== undefined && { is_active: isActive }),
+        ...(translations !== undefined && { translations }),
         updated_at: new Date().toISOString(),
       })
       .eq("id", categoryId)

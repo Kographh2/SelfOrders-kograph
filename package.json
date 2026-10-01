@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "print:bridge": "node scripts/escpos-bridge.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { getAuthUser, isStaff, isOwnerOrAdmin, hasStoreAccess } from "@/lib/auth";
 import { notifyOrderStatus } from "@/lib/push-notifications";
+import { writeAudit } from "@/lib/audit";
 
 type Params = { params: Promise<{ orderId: string }> };
 
@@ -57,7 +58,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     // Fetch current order first
     const { data: current, error: fetchError } = await supabaseAdmin
       .from("orders")
-      .select("id, store_id, status, payment_status")
+      .select("id, store_id, status, payment_status, total_amount, notes")
       .eq("id", orderId)
       .single();
 
@@ -106,6 +107,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
       .single();
 
     if (error) throw error;
+
+    if (status || notes !== undefined) await writeAudit(user!, current.store_id, status === "cancelled" ? "order.cancel" : status ? "order.status_change" : "order.notes_change", "order", orderId, current, order);
 
     if (status) await notifyOrderStatus(orderId, status);
 

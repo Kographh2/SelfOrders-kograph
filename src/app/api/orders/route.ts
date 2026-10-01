@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { getAuthUser, isStaff, hasStoreAccess } from "@/lib/auth";
 import { getStoreOperatingStatus } from "@/lib/store-hours";
+import { isMenuScheduledNow } from "@/lib/menu-schedule";
+import { createHash } from "crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +66,9 @@ export async function POST(request: NextRequest) {
       notes,
       items,
       promoClaimId,
+      orderType = "dine_in",
+      pickupAt,
+      reservationToken,
     } = body;
     const customerAuth = await getAuthUser(request);
     let claimedPromo: any = null;
@@ -85,7 +90,8 @@ export async function POST(request: NextRequest) {
       .select("id,is_active,manual_closed,opening_hours,timezone")
       .eq("id", storeId).maybeSingle();
     if (!orderStore) return NextResponse.json({ error: "Toko tidak ditemukan" }, { status: 404 });
-    const operatingStatus = getStoreOperatingStatus(orderStore);
+    const orderDate = orderType === "pickup" && pickupAt ? new Date(pickupAt) : new Date();
+    const operatingStatus = getStoreOperatingStatus(orderStore, orderDate);
     if (!operatingStatus.is_open) {
       const nextOpen = operatingStatus.next_open_label ? ` Buka kembali ${operatingStatus.next_open_label}.` : "";
       return NextResponse.json({ error: `Toko sedang tutup.${nextOpen}` }, { status: 409 });
@@ -93,7 +99,13 @@ export async function POST(request: NextRequest) {
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "Order harus memiliki minimal 1 item" }, { status: 400 });
     }
-    if (!tableId && !tableNumber) {
+    if (!['dine_in', 'pickup'].includes(orderType)) return NextResponse.json({ error: "Jenis pesanan tidak valid" }, { status: 400 });
+    if (orderType === "pickup") {
+      if (!pickupAt || Number.isNaN(orderDate.getTime()) || orderDate.getTime() < Date.now() + 10 * 60_000 || orderDate.getTime() > Date.now() + 30 * 86400_000) {
+        return NextResponse.json({ error: "Waktu pickup harus minimal 10 menit dan maksimal 30 hari dari sekarang" }, { status: 400 });
+      }
+    }
+    if (orderType === "dine_in" && !tableId && !tableNumber) {
       return NextResponse.json({ error: "Scan QR meja yang valid sebelum membuat pesanan" }, { status: 400 });
     }
 
@@ -116,7 +128,7 @@ export async function POST(request: NextRequest) {
     // ── Resolve tableId: bisa UUID atau nomor meja ─────────────────
     let resolvedTableId: string | null = null;
 
-    if (tableId || tableNumber) {
+    if (orderType === "dine_in" && (tableId || tableNumber)) {
       const raw = tableId ?? tableNumber;
 
       if (raw && UUID_REGEX.test(String(raw))) {
@@ -143,8 +155,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!resolvedTableId) {
+    if (orderType === "dine_in" && !resolvedTableId) {
       return NextResponse.json({ error: "QR meja tidak valid. Silakan scan ulang QR di meja." }, { status: 400 });
+    }
+
+    if (resolvedTableId) {
+      const start=new Date(orderDate.getTime()-90*60000).toISOString(),end=new Date(orderDate.getTime()+90*60000).toISOString();
+      const {data:reserved}=await supabaseAdmin.from("reservations").select("id,reserved_for,deposit_status,private_token_hash,status").eq("table_id",resolvedTableId).in("status",["confirmed","arrived","seated"]).gte("reserved_for",start).lte("reserved_for",end).limit(1).maybeSingle();
+      if(reserved){const privateAllowed=Boolean(reservationToken&&["paid","not_required"].includes(reserved.deposit_status)&&createHash("sha256").update(String(reservationToken)).digest("hex")===reserved.private_token_hash&&Math.abs(new Date(reserved.reserved_for).getTime()-orderDate.getTime())<=120*60000);if(!privateAllowed)return NextResponse.json({error:`Meja ini sedang disiapkan untuk reservasi pada ${new Date(reserved.reserved_for).toLocaleString("id-ID")}. Silakan scan meja kosong lain.`},{status:409});}
+    }
+
+    const menuIds = [...new Set(items.map((item: { menu_item_id: string }) => item.menu_item_id))];
+    const { data: menuRows, error: menuError } = await supabaseAdmin.from("menu_items")
+      .select("id,name,is_available,show_on_menu,available_from,available_until,available_days,prep_minutes")
+      .eq("store_id", storeId).in("id", menuIds);
+    if (menuError) throw menuError;
+    const menuById = new Map((menuRows ?? []).map(row => [row.id, row]));
+    for (const id of menuIds) {
+      const menu = menuById.get(id);
+      if (!menu || !menu.is_available || !menu.show_on_menu || !isMenuScheduledNow(menu, orderStore.timezone || "Asia/Jakarta", orderDate)) {
+        return NextResponse.json({ error: "Ada menu yang tidak tersedia pada waktu pesanan diproses" }, { status: 409 });
+      }
     }
 
     // ── Buat order via atomic DB function ─────────────────────────
@@ -167,6 +198,13 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const prepMinutes = Math.max(5, Math.min(240, items.reduce((sum: number, item: { menu_item_id: string; quantity: number }) => sum + (Number(menuById.get(item.menu_item_id)?.prep_minutes) || 5) * item.quantity, 0)));
+    const estimatedReadyAt = orderType === "pickup" ? orderDate.toISOString() : new Date(Date.now() + prepMinutes * 60_000).toISOString();
+    await supabaseAdmin.from("orders").update({ order_type: orderType, pickup_at: orderType === "pickup" ? orderDate.toISOString() : null, estimated_ready_at: estimatedReadyAt }).eq("id", result.order_id);
+    result.order_type = orderType;
+    result.pickup_at = orderType === "pickup" ? orderDate.toISOString() : null;
+    result.estimated_ready_at = estimatedReadyAt;
 
     if (claimedPromo) {
       const orderId = result.order_id as string;

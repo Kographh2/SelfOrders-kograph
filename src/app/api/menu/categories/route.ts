@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { storeId, name, description, displayOrder } = body;
+    const { storeId, name, description, displayOrder, translations } = body;
 
     if (!storeId || !name?.trim()) {
       return NextResponse.json({ error: "storeId and name are required" }, { status: 400 });
@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
         name: name.trim(),
         description: description?.trim() ?? null,
         display_order: displayOrder ?? 0,
+        translations: translations ?? {},
         is_active: true,
       })
       .select()

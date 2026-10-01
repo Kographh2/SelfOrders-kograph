@@ -71,6 +71,26 @@ export async function POST(request: NextRequest) {
     const newPaymentStatus = mapPaymentStatus(txStatus, fraudStatus);
     const isPaid = newPaymentStatus === "paid";
 
+    if (orderId.startsWith("SPLIT-")) {
+      const { data: part } = await supabaseAdmin.from("split_bill_parts").select("id,split_bill_id,amount,status").eq("midtrans_order_id", orderId).maybeSingle();
+      if (!part) return NextResponse.json({ error: "Bagian split bill tidak ditemukan" }, { status: 404 });
+      if (Math.round(Number(grossAmount)) !== Math.round(Number(part.amount))) return NextResponse.json({ error: "Nominal split bill tidak cocok" }, { status: 400 });
+      // Split parts allow pending/paid/failed/expired only. Refunds are terminal failures.
+      const splitPartStatus = newPaymentStatus === "refunded" ? "failed" : newPaymentStatus;
+      const { error: partUpdateError } = await supabaseAdmin.from("split_bill_parts").update({ status: isPaid ? "paid" : splitPartStatus, paid_at: isPaid ? new Date().toISOString() : null }).eq("id", part.id).neq("status", "paid");
+      if (partUpdateError) throw partUpdateError;
+      const { data: parts } = await supabaseAdmin.from("split_bill_parts").select("status").eq("split_bill_id", part.split_bill_id);
+      if (parts?.length && parts.every(row => row.status === "paid")) {
+        const { data: bill } = await supabaseAdmin.from("split_bills").update({ status: "paid" }).eq("id", part.split_bill_id).eq("status", "active").select("order_id").maybeSingle();
+        if (bill) {
+          await supabaseAdmin.from("orders").update({ payment_status: "paid", status: "confirmed", payment_method: "split", updated_at: new Date().toISOString() }).eq("id", bill.order_id).eq("payment_status", "pending");
+          await supabaseAdmin.from("payments").update({ status: "paid", method: "split", paid_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("order_id", bill.order_id);
+          await notifyOrderStatus(bill.order_id, "confirmed");
+        }
+      }
+      return NextResponse.json({ status: isPaid ? "split_part_paid" : newPaymentStatus });
+    }
+
     // Wallet top-ups use their own Midtrans order namespace and ledger.
     if (orderId.startsWith("TOPUP-")) {
       const topupId = orderId.slice(6);
@@ -84,6 +104,20 @@ export async function POST(request: NextRequest) {
         await supabaseAdmin.from("wallet_topups").update({ status: newPaymentStatus === "refunded" ? "failed" : newPaymentStatus, updated_at: new Date().toISOString() }).eq("id", topupId);
       }
       return NextResponse.json({ status: isPaid ? "topup_paid" : newPaymentStatus });
+    }
+
+    if (orderId.startsWith("RES-")) {
+      const reservationId=orderId.slice(4);
+      const {data:reservation}=await supabaseAdmin.from("reservations").select("id,deposit_amount,deposit_status,status").eq("id",reservationId).eq("midtrans_order_id",orderId).maybeSingle();
+      if(!reservation)return NextResponse.json({error:"Reservasi DP tidak ditemukan"},{status:404});
+      if(Math.round(Number(grossAmount))!==Math.round(Number(reservation.deposit_amount)))return NextResponse.json({error:"Nominal DP tidak cocok"},{status:400});
+      const depositStatus=isPaid?"paid":newPaymentStatus==="expired"?"failed":newPaymentStatus==="pending"?"pending":"failed";
+      const reservationUpdate:{deposit_status:string;updated_at:string;status?:string}={deposit_status:depositStatus,updated_at:new Date().toISOString()};
+      // A late payment callback must not reactivate a reservation staff already cancelled.
+      if(depositStatus==="failed"&&reservation.status==="confirmed")reservationUpdate.status="cancelled";
+      const {error:reservationUpdateError}=await supabaseAdmin.from("reservations").update(reservationUpdate).eq("id",reservation.id);
+      if(reservationUpdateError)throw reservationUpdateError;
+      return NextResponse.json({status:isPaid?"reservation_deposit_paid":depositStatus});
     }
 
     // Update payment record

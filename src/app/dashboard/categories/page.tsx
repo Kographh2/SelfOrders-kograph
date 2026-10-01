@@ -20,6 +20,7 @@ export default function CategoriesPage() {
   const [editTarget,   setEditTarget]   = useState<Category | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [formName,     setFormName]     = useState("");
+  const [formEnglishName,setFormEnglishName]=useState("");
   const [formDesc,     setFormDesc]     = useState("");
   const [formOrder,    setFormOrder]    = useState("0");
   const [isSaving,     setIsSaving]     = useState(false);
@@ -43,12 +44,13 @@ export default function CategoriesPage() {
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
 
   const openAdd = () => {
-    setFormName(""); setFormDesc(""); setFormOrder("0");
+    setFormName(""); setFormEnglishName(""); setFormDesc(""); setFormOrder("0");
     setEditTarget(null); setFormError(null); setShowForm(true);
   };
 
   const openEdit = (cat: Category) => {
     setFormName(cat.name);
+    setFormEnglishName(cat.translations?.en?.name||"");
     setFormDesc(cat.description ?? "");
     setFormOrder(String(cat.display_order));
     setEditTarget(cat); setFormError(null); setShowForm(true);
@@ -67,6 +69,7 @@ export default function CategoriesPage() {
         body: JSON.stringify({
           storeId,
           name:         formName.trim(),
+          translations: {en:{name:formEnglishName.trim()}},
           description:  formDesc.trim() || null,
           displayOrder: parseInt(formOrder) || 0,
         }),
@@ -268,6 +271,7 @@ export default function CategoriesPage() {
                   placeholder="Opsional"
                 />
               </div>
+              <div><label className="label-field">Nama kategori English (opsional)</label><input value={formEnglishName} onChange={e=>setFormEnglishName(e.target.value)} className="input-field w-full" placeholder="Example: Drinks"/></div>
               <div>
                 <label className="label-field">Urutan Tampil</label>
                 <input

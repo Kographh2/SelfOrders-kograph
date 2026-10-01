@@ -33,6 +33,7 @@ export interface Category {
   id: string;
   store_id: string;
   name: string;
+  translations?: Record<string, { name?: string; description?: string }>;
   description?: string;
   display_order: number;
   is_active: boolean;
@@ -54,6 +55,14 @@ export interface MenuItem {
   track_stock?: boolean;
   stock_quantity?: number | null;
   show_on_menu?: boolean;
+  translations?: Record<string, { name?: string; description?: string }>;
+  allergens?: string[];
+  dietary_tags?: string[];
+  available_from?: string | null;
+  available_until?: string | null;
+  available_days?: number[];
+  prep_minutes?: number;
+  is_bundle?: boolean;
   display_order: number;
   created_at: string;
   updated_at: string;
@@ -107,6 +116,9 @@ export interface Order {
   status: OrderStatus;
   payment_status: PaymentStatus;
   payment_method?: string;
+  order_type?: "dine_in" | "pickup";
+  pickup_at?: string | null;
+  estimated_ready_at?: string | null;
   snap_token?: string;
   redirect_url?: string;
   subtotal: number;

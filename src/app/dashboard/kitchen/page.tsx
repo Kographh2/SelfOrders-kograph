@@ -10,6 +10,7 @@ import { PageTransition, StaggerContainer, StaggerItem, EmptyState } from "@/com
 import { useAuth, useRole, getAuthHeaders } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import type { Order, OrderStatus } from "@/types";
+import { sendKitchenTicketToPrinter } from "@/lib/escpos-client";
 
 const STATUS_CONFIG: Record<
   OrderStatus,
@@ -34,6 +35,9 @@ export default function KitchenPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<OrderStatus | "all">("all");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [autoPrint, setAutoPrint] = useState(false);
+  const [printOrderId, setPrintOrderId] = useState<string | null>(null);
+  const knownOrderPayments = useRef<Map<string, string> | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const fetchOrders = useCallback(async () => {
@@ -46,13 +50,21 @@ export default function KitchenPage() {
       );
       if (!res.ok) throw new Error();
       const r = await res.json();
-      setOrders(r.data ?? []);
+      const nextOrders = r.data ?? [];
+      const newlyPaid = knownOrderPayments.current && autoPrint
+        ? nextOrders.filter((order: Order) => order.payment_status === "paid" && knownOrderPayments.current?.get(order.id) !== "paid")
+        : [];
+      knownOrderPayments.current = new Map(nextOrders.map((order: Order) => [order.id, order.payment_status]));
+      for (const fresh of newlyPaid) {
+        void sendKitchenTicketToPrinter(fresh).then(()=>toast.success(`Tiket #${fresh.order_number} terkirim ke printer`)).catch(()=>toast.error("Printer ESC/POS tidak terhubung. Periksa bridge lokal."));
+      }
+      setOrders(nextOrders);
     } catch {
       toast.error("Gagal memuat pesanan");
     } finally {
       setIsLoading(false);
     }
-  }, [token, storeId]);
+  }, [token, storeId, autoPrint]);
 
   useEffect(() => {
     if (token) fetchOrders();
@@ -127,6 +139,7 @@ export default function KitchenPage() {
     <PageTransition>
       <Toaster position="top-right" />
       <div className="p-4 md:p-6 lg:p-8">
+        <style>{`@media print { body * { visibility: hidden !important; } .kitchen-ticket[data-active-print="true"], .kitchen-ticket[data-active-print="true"] * { visibility: visible !important; } .kitchen-ticket[data-active-print="true"] { position:absolute; left:0; top:0; width:100%; color:#000!important; background:#fff!important; border:0!important; box-shadow:none!important; } .no-print { display:none!important } }`}</style>
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -145,6 +158,7 @@ export default function KitchenPage() {
           >
             <RefreshCw className="w-5 h-5" />
           </button>
+          <label className="no-print flex items-center gap-2 text-xs"><input type="checkbox" checked={autoPrint} onChange={e=>setAutoPrint(e.target.checked)}/>Cetak otomatis ESC/POS lokal</label>
         </div>
 
         {/* Status filter tabs */}
@@ -186,9 +200,9 @@ export default function KitchenPage() {
               const isUpdating = updatingId === order.id;
               return (
                 <StaggerItem key={order.id}>
-                  <motion.div
+                  <motion.div data-active-print={printOrderId===order.id}
                     layout
-                    className={`rounded-2xl border-2 overflow-hidden shadow-soft ${
+                    className={`kitchen-ticket rounded-2xl border-2 overflow-hidden shadow-soft ${
                       order.status === "pending" ? "border-amber-300" : "border-navy-100"
                     }`}
                   >
@@ -256,6 +270,8 @@ export default function KitchenPage() {
                           minute: "2-digit",
                         })}
                       </div>
+                      {order.estimated_ready_at && <p className="text-xs font-semibold text-blue-700">Estimasi siap: {new Date(order.estimated_ready_at).toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"})}{order.order_type==="pickup"?` · Pickup ${order.pickup_at?new Date(order.pickup_at).toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"}):""}`:""}</p>}
+                      <div className="no-print grid grid-cols-2 gap-2"><button className="rounded-lg border py-2 text-xs font-bold" onClick={()=>void sendKitchenTicketToPrinter(order).then(()=>toast.success("Tiket terkirim ke printer")).catch(()=>toast.error("Print bridge lokal belum aktif"))}>Cetak ESC/POS</button><button className="rounded-lg border py-2 text-xs font-bold" onClick={()=>{setPrintOrderId(order.id);window.setTimeout(()=>window.print(),100)}}>Cetak browser</button></div>
 
                       {/* Action button */}
                       {cfg.next && (

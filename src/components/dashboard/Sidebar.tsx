@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, ShoppingBag, ChefHat, UtensilsCrossed, Clock3,
-  Tag, Table2, QrCode, Users, Settings, Store, LogOut,
+  Tag, Table2, QrCode, Users, Settings, Store, LogOut, Boxes, BarChart3, ClipboardList, MessageCircle,
   ChevronLeft, ChevronRight, Menu, X, ScanBarcode, BadgePercent,
 } from "lucide-react";
 import { useAuth, useRole } from "@/contexts/AuthContext";
@@ -32,6 +32,11 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/promos",   label: "Promo Struk", icon: BadgePercent,     roles: ["owner"] },
   { href: "/dashboard/settings", label: "Pengaturan",  icon: Settings,         roles: ["owner","admin"] },
   { href: "/dashboard/hours", label: "Jam Operasional", icon: Clock3,          roles: ["owner","admin"] },
+  { href: "/dashboard/inventory", label: "Stok Bahan", icon: Boxes, roles: ["owner","admin"] },
+  { href: "/dashboard/reports", label: "Laporan", icon: BarChart3, roles: ["owner","admin","kasir"] },
+  { href: "/dashboard/audit", label: "Aktivitas", icon: ClipboardList, roles: ["owner","admin"] },
+  { href: "/dashboard/reservations", label: "Reservasi", icon: Table2, roles: ["owner","admin","kasir"] },
+  { href: "/dashboard/telegram", label: "Chat Telegram", icon: MessageCircle, roles: ["owner","admin","kasir"] },
 ];
 
 export default function Sidebar() {

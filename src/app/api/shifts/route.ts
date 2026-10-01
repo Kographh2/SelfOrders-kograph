@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getAuthUser, hasStoreAccess, isStaff } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-server";
+import { writeAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
         store_id: storeId, cashier_id: user!.userId, opening_cash: Math.round(openingCash),
       }).select().single();
       if (error) return NextResponse.json({ error: error.code === "23505" ? "Shift kasir masih terbuka" : error.message }, { status: 409 });
+      await writeAudit(user!, storeId, "shift.open", "cashier_shift", data.id, null, data);
       return NextResponse.json({ data }, { status: 201 });
     }
     if (action === "close") {
@@ -45,6 +47,7 @@ export async function POST(request: NextRequest) {
         p_shift_id: shiftId, p_cashier_id: user!.userId, p_closing_cash: Math.round(closingCash),
       });
       if (error) return NextResponse.json({ error: error.message }, { status: 409 });
+      await writeAudit(user!, user?.storeId || null, "shift.close", "cashier_shift", shiftId, null, { closing_cash: Math.round(closingCash), result: data });
       return NextResponse.json({ data });
     }
     return NextResponse.json({ error: "Aksi shift tidak dikenal" }, { status: 400 });
