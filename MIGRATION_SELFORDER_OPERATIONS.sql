@@ -5,6 +5,23 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Retain every Snap attempt so delayed callbacks from a previous retry can
+-- still be mapped to the correct private split-bill share.
+CREATE TABLE IF NOT EXISTS split_bill_payment_attempts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  split_bill_id UUID NOT NULL REFERENCES split_bills(id) ON DELETE CASCADE,
+  split_bill_part_id UUID NOT NULL REFERENCES split_bill_parts(id) ON DELETE CASCADE,
+  midtrans_order_id TEXT NOT NULL UNIQUE,
+  snap_token TEXT NOT NULL,
+  amount NUMERIC(14,2) NOT NULL CHECK(amount > 0),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','paid','failed','expired')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  paid_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS split_bill_attempt_part_idx ON split_bill_payment_attempts(split_bill_part_id,created_at DESC);
+ALTER TABLE split_bill_payment_attempts ENABLE ROW LEVEL SECURITY;
+
 -- 1. Suppliers and purchase orders for recipe ingredients.
 CREATE TABLE IF NOT EXISTS suppliers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

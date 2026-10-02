@@ -104,16 +104,29 @@ export async function POST(request: NextRequest) {
     }
 
     if (orderId.startsWith("SPLIT-")) {
-      const { data: part } = await supabaseAdmin.from("split_bill_parts").select("id,split_bill_id,amount,status").eq("midtrans_order_id", orderId).maybeSingle();
+      const { data: attempt } = await supabaseAdmin.from("split_bill_payment_attempts").select("id,split_bill_part_id,split_bill_id,amount,status").eq("midtrans_order_id", orderId).maybeSingle();
+      // Fallback supports transactions created before attempt history was deployed.
+      const { data: legacyPart } = attempt ? { data: null } : await supabaseAdmin.from("split_bill_parts").select("id,split_bill_id,amount,status").eq("midtrans_order_id", orderId).maybeSingle();
+      const partId = attempt?.split_bill_part_id || legacyPart?.id;
+      const splitBillId = attempt?.split_bill_id || legacyPart?.split_bill_id;
+      const partAmount = attempt?.amount || legacyPart?.amount;
+      if (!partId || !splitBillId || partAmount == null) return NextResponse.json({ error: "Bagian split bill tidak ditemukan" }, { status: 404 });
+      if (attempt) {
+        const { error: attemptError } = await supabaseAdmin.from("split_bill_payment_attempts").update({ status: isPaid ? "paid" : newPaymentStatus === "expired" ? "expired" : newPaymentStatus === "refunded" ? "failed" : newPaymentStatus, paid_at: isPaid ? new Date().toISOString() : null, updated_at: new Date().toISOString() }).eq("id", attempt.id).neq("status", "paid");
+        if (attemptError) throw attemptError;
+      }
+      const { data: part } = await supabaseAdmin.from("split_bill_parts").select("id,status,midtrans_order_id").eq("id", partId).maybeSingle();
       if (!part) return NextResponse.json({ error: "Bagian split bill tidak ditemukan" }, { status: 404 });
-      if (Math.round(Number(grossAmount)) !== Math.round(Number(part.amount))) return NextResponse.json({ error: "Nominal split bill tidak cocok" }, { status: 400 });
+      if (Math.round(Number(grossAmount)) !== Math.round(Number(partAmount))) return NextResponse.json({ error: "Nominal split bill tidak cocok" }, { status: 400 });
       // Split parts allow pending/paid/failed/expired only. Refunds are terminal failures.
       const splitPartStatus = newPaymentStatus === "refunded" ? "failed" : newPaymentStatus;
-      const { error: partUpdateError } = await supabaseAdmin.from("split_bill_parts").update({ status: isPaid ? "paid" : splitPartStatus, paid_at: isPaid ? new Date().toISOString() : null }).eq("id", part.id).neq("status", "paid");
+      let partUpdate = supabaseAdmin.from("split_bill_parts").update({ status: isPaid ? "paid" : splitPartStatus, paid_at: isPaid ? new Date().toISOString() : null }).eq("id", part.id).neq("status", "paid");
+      if (!isPaid) partUpdate = partUpdate.eq("midtrans_order_id", orderId);
+      const { error: partUpdateError } = await partUpdate;
       if (partUpdateError) throw partUpdateError;
-      const { data: parts } = await supabaseAdmin.from("split_bill_parts").select("status").eq("split_bill_id", part.split_bill_id);
+      const { data: parts } = await supabaseAdmin.from("split_bill_parts").select("status").eq("split_bill_id", splitBillId);
       if (parts?.length && parts.every(row => row.status === "paid")) {
-        const { data: bill } = await supabaseAdmin.from("split_bills").update({ status: "paid" }).eq("id", part.split_bill_id).eq("status", "active").select("order_id").maybeSingle();
+        const { data: bill } = await supabaseAdmin.from("split_bills").update({ status: "paid" }).eq("id", splitBillId).eq("status", "active").select("order_id").maybeSingle();
         if (bill) {
           await supabaseAdmin.from("orders").update({ payment_status: "paid", status: "confirmed", payment_method: "split", updated_at: new Date().toISOString() }).eq("id", bill.order_id).eq("payment_status", "pending");
           await supabaseAdmin.from("payments").update({ status: "paid", method: "split", paid_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("order_id", bill.order_id);
