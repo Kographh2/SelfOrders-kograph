@@ -87,7 +87,7 @@ export async function createSnapTransaction(params: {
       "gopay", "shopeepay", "qris", "indomaret", "alfamart",
     ],
     callbacks: {
-      finish: params.finishUrl ?? (appUrl ? `${appUrl}/orders/${params.orderId}/waiting` : undefined),
+      finish: params.finishUrl ?? (appUrl ? `${appUrl}/payment/finish?orderId=${encodeURIComponent(params.orderId)}` : undefined),
     },
   });
   return { token: transaction.token, redirectUrl: transaction.redirect_url };

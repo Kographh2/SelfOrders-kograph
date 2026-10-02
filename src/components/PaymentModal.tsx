@@ -70,7 +70,7 @@ export default function PaymentModal(props:Props) {
       const response=await fetch("/api/payment/midtrans",{method:"POST",headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify({orderId:order.id,sessionId:localStorage.getItem("selforder_session_id")})});
       const result=await response.json(); if(!response.ok) throw new Error(result.error||"Gagal membuka Midtrans Snap");
       if(!snapClient) throw new Error("Midtrans Snap belum siap");
-      const waitingUrl = `/orders/${encodeURIComponent(order.id)}/waiting`;
+      const finishUrl = `/payment/finish?orderId=${encodeURIComponent(order.id)}`;
       sessionStorage.setItem("selforder_pending_snap_order", order.id);
       let returned = false;
       const returnToWaiting = () => {
@@ -78,7 +78,7 @@ export default function PaymentModal(props:Props) {
         returned = true;
         sessionStorage.removeItem("selforder_pending_snap_order");
         props.onPaymentComplete("snap");
-        window.location.assign(waitingUrl);
+        window.location.assign(finishUrl);
       };
       snapClient.pay(result.data.token,{onSuccess:returnToWaiting,onPending:returnToWaiting,onError:returnToWaiting,onClose:returnToWaiting});
     }catch(error){
