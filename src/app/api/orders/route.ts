@@ -66,12 +66,26 @@ export async function POST(request: NextRequest) {
       notes,
       items,
       promoClaimId,
+      loyaltyRedemptionCode,
+      policyAccepted,
       orderType = "dine_in",
       pickupAt,
       reservationToken,
     } = body;
     const customerAuth = await getAuthUser(request);
     let claimedPromo: any = null;
+    let claimedLoyalty: any = null;
+    if (loyaltyRedemptionCode) {
+      if (!customerAuth || customerAuth.role !== "user") return NextResponse.json({ error: "Login diperlukan untuk memakai reward poin" }, { status: 401 });
+      if (promoClaimId) return NextResponse.json({ error: "Gunakan satu promo atau reward poin dalam satu pesanan" }, { status: 400 });
+      const code = String(loyaltyRedemptionCode).trim().toUpperCase();
+      const { data: redemption } = await supabaseAdmin.from("loyalty_redemptions")
+        .select("id,user_id,status,expires_at,reward:loyalty_rewards(id,store_id,min_purchase,discount_amount,name)")
+        .eq("code", code).eq("user_id", customerAuth.userId).eq("status", "available").gt("expires_at", new Date().toISOString()).maybeSingle();
+      const reward = Array.isArray(redemption?.reward) ? redemption.reward[0] : redemption?.reward;
+      if (!redemption || !reward || reward.store_id !== storeId) return NextResponse.json({ error: "Kode reward tidak valid, kedaluwarsa, atau bukan untuk cabang ini" }, { status: 400 });
+      claimedLoyalty = { redemption, reward };
+    }
     if (promoClaimId) {
       if (!customerAuth || customerAuth.role !== "user") return NextResponse.json({ error: "Login diperlukan untuk memakai promo" }, { status: 401 });
       const { data: claim } = await supabaseAdmin.from("promo_claims").select("id,user_id,used_order_id,promo:promos(*)").eq("id", promoClaimId).eq("user_id", customerAuth.userId).single();
@@ -178,6 +192,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const [branchPolicies, globalPolicies] = await Promise.all([
+      supabaseAdmin.from("store_documents").select("id,document_type,version").eq("store_id", storeId).eq("status", "published").in("document_type", ["privacy", "terms"]),
+      supabaseAdmin.from("store_documents").select("id,document_type,version").is("store_id", null).eq("status", "published").in("document_type", ["privacy", "terms"]),
+    ]);
+    if (branchPolicies.error || globalPolicies.error) throw branchPolicies.error || globalPolicies.error;
+    const requiredPolicies = ["privacy", "terms"].flatMap(type => {
+      const branch = (branchPolicies.data || []).find(policy => policy.document_type === type);
+      const global = (globalPolicies.data || []).find(policy => policy.document_type === type);
+      return [branch || global].filter(Boolean);
+    });
+    if (requiredPolicies.length && policyAccepted !== true) return NextResponse.json({ error: "Setujui Kebijakan Privasi dan Syarat Penggunaan sebelum memesan" }, { status: 412 });
+
     // ── Buat order via atomic DB function ─────────────────────────
     const { data: result, error: rpcError } = await supabaseAdmin.rpc("create_order_atomic", {
       p_store_id:            storeId,
@@ -197,6 +223,23 @@ export async function POST(request: NextRequest) {
         { error: rpcError.message || "Gagal membuat pesanan" },
         { status: 400 }
       );
+    }
+
+    if (requiredPolicies.length) {
+      const sessionHash = !customerAuth?.userId && anonymousSessionId
+        ? createHash("sha256").update(String(anonymousSessionId)).digest("hex") : null;
+      const { error: acceptanceError } = await supabaseAdmin.from("policy_acceptances").insert(requiredPolicies.map(policy => ({
+        order_id: result.order_id,
+        user_id: customerAuth?.userId || null,
+        anonymous_session_hash: sessionHash,
+        store_id: storeId,
+        document_id: policy!.id,
+        document_version: policy!.version,
+      })));
+      if (acceptanceError) {
+        await supabaseAdmin.from("orders").delete().eq("id", result.order_id);
+        return NextResponse.json({ error: "Persetujuan kebijakan belum dapat dicatat; pesanan tidak dibuat" }, { status: 500 });
+      }
     }
 
     const prepMinutes = Math.max(5, Math.min(240, items.reduce((sum: number, item: { menu_item_id: string; quantity: number }) => sum + (Number(menuById.get(item.menu_item_id)?.prep_minutes) || 5) * item.quantity, 0)));
@@ -230,6 +273,30 @@ export async function POST(request: NextRequest) {
         supabaseAdmin.from("payments").update({ amount: finalTotal }).eq("order_id", orderId),
       ]);
       result.promo_discount = discount;
+      result.total_amount = finalTotal;
+    }
+
+    if (claimedLoyalty) {
+      const orderId = result.order_id as string;
+      if (Number(result.subtotal) < Number(claimedLoyalty.reward.min_purchase || 0)) {
+        await supabaseAdmin.from("orders").delete().eq("id", orderId);
+        return NextResponse.json({ error: "Pesanan belum memenuhi minimum pembelian reward" }, { status: 400 });
+      }
+      const payableTotal = Math.max(0, Number(result.total_amount));
+      const discount = Math.max(0, Math.min(Math.round(Number(claimedLoyalty.reward.discount_amount)), Math.max(0, payableTotal - 1)));
+      const finalTotal = Number(result.total_amount) - discount;
+      const { data: usedRedemption } = await supabaseAdmin.from("loyalty_redemptions")
+        .update({ status: "reserved", used_order_id: orderId })
+        .eq("id", claimedLoyalty.redemption.id).eq("status", "available").gt("expires_at", new Date().toISOString()).select("id").maybeSingle();
+      if (!usedRedemption) {
+        await supabaseAdmin.from("orders").delete().eq("id", orderId);
+        return NextResponse.json({ error: "Kode reward baru saja dipakai pada pesanan lain" }, { status: 409 });
+      }
+      await Promise.all([
+        supabaseAdmin.from("orders").update({ loyalty_discount: discount, total_amount: finalTotal }).eq("id", orderId),
+        supabaseAdmin.from("payments").update({ amount: finalTotal }).eq("order_id", orderId),
+      ]);
+      result.loyalty_discount = discount;
       result.total_amount = finalTotal;
     }
 

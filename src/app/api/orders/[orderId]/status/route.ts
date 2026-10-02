@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { getAuthUser, isStaff, hasStoreAccess, isOwnerOrAdmin } from "@/lib/auth";
 import { notifyOrderStatus } from "@/lib/push-notifications";
+import { finalizeLoyaltyRedemption } from "@/lib/loyalty-order";
 
 type Params = { params: Promise<{ orderId: string }> };
 
@@ -69,6 +70,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     if (error) throw error;
 
     await notifyOrderStatus(orderId, status);
+    if (status === "cancelled") await finalizeLoyaltyRedemption(orderId, "failed");
 
     return NextResponse.json({ data }, { status: 200 });
   } catch (error: unknown) {

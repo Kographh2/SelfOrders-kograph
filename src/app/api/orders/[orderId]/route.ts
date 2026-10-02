@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase-server";
 import { getAuthUser, isStaff, isOwnerOrAdmin, hasStoreAccess } from "@/lib/auth";
 import { notifyOrderStatus } from "@/lib/push-notifications";
 import { writeAudit } from "@/lib/audit";
+import { finalizeLoyaltyRedemption } from "@/lib/loyalty-order";
 
 type Params = { params: Promise<{ orderId: string }> };
 
@@ -111,6 +112,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     if (status || notes !== undefined) await writeAudit(user!, current.store_id, status === "cancelled" ? "order.cancel" : status ? "order.status_change" : "order.notes_change", "order", orderId, current, order);
 
     if (status) await notifyOrderStatus(orderId, status);
+    if (status === "cancelled") await finalizeLoyaltyRedemption(orderId, "failed");
 
     return NextResponse.json({ data: order }, { status: 200 });
   } catch (error: unknown) {

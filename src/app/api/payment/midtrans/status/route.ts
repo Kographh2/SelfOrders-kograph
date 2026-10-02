@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { snap } from "@/lib/midtrans";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { notifyOrderStatus } from "@/lib/push-notifications";
+import { finalizeLoyaltyRedemption } from "@/lib/loyalty-order";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,7 @@ export async function POST(request: NextRequest) {
     if (isPaid) orderUpdate.status = "confirmed";
     else if (paymentStatus === "failed") orderUpdate.status = "cancelled";
     await supabaseAdmin.from("orders").update(orderUpdate).eq("id", order.id).eq("payment_status", "pending");
+    await finalizeLoyaltyRedemption(order.id, paymentStatus);
 
     if (isPaid) await notifyOrderStatus(order.id, "confirmed");
     const { data: latest } = await supabaseAdmin.from("orders").select("payment_status").eq("id", order.id).single();

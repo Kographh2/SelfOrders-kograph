@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, ShoppingBag, ChefHat, UtensilsCrossed, Clock3,
   Tag, Table2, QrCode, Users, Settings, Store, LogOut, Boxes, BarChart3, ClipboardList, MessageCircle,
-  ChevronLeft, ChevronRight, Menu, X, ScanBarcode, BadgePercent,
+  ChevronLeft, ChevronRight, Menu, X, ScanBarcode, BadgePercent, Truck, Gift, ClipboardCheck, ShieldCheck, MessageSquareWarning, TrendingUp,
 } from "lucide-react";
 import { useAuth, useRole } from "@/contexts/AuthContext";
 
@@ -37,6 +37,14 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/audit", label: "Aktivitas", icon: ClipboardList, roles: ["owner","admin"] },
   { href: "/dashboard/reservations", label: "Reservasi", icon: Table2, roles: ["owner","admin","kasir"] },
   { href: "/dashboard/telegram", label: "Chat Telegram", icon: MessageCircle, roles: ["owner","admin","kasir"] },
+  { href: "/dashboard/purchasing", label: "Pemasok & Pembelian", icon: Truck, roles: ["owner","admin"] },
+  { href: "/dashboard/food-cost", label: "HPP & Margin Menu", icon: TrendingUp, roles: ["owner","admin"] },
+  { href: "/dashboard/rewards", label: "Reward Loyalti", icon: Gift, roles: ["owner","admin"] },
+  { href: "/dashboard/refunds", label: "Refund", icon: ClipboardCheck, roles: ["owner","admin"] },
+  { href: "/dashboard/customer-care", label: "Layanan Pelanggan", icon: MessageSquareWarning, roles: ["owner","admin","kasir"] },
+  { href: "/dashboard/forecast", label: "Prediksi & Persiapan", icon: TrendingUp, roles: ["owner","admin"] },
+  { href: "/dashboard/staff", label: "Jadwal & Absensi", icon: ClipboardCheck, roles: ["owner","admin","kasir"] },
+  { href: "/dashboard/policies", label: "Kebijakan & FAQ", icon: ShieldCheck, roles: ["owner","admin"] },
 ];
 
 export default function Sidebar() {

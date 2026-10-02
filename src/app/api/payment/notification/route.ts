@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { verifyMidtransSignature } from "@/lib/midtrans";
 import { notifyOrderStatus } from "@/lib/push-notifications";
+import { finalizeLoyaltyRedemption } from "@/lib/loyalty-order";
 
 export const dynamic = "force-dynamic";
 
@@ -63,13 +64,44 @@ export async function POST(request: NextRequest) {
       .eq("order_id", orderId)
       .single();
 
-    if (existingPayment?.status === "paid") {
+    if (existingPayment?.status === "paid" && txStatus !== "refund" && txStatus !== "partial_refund") {
       // Already processed — return 200 to stop Midtrans retries
       return NextResponse.json({ status: "already_processed" }, { status: 200 });
     }
 
     const newPaymentStatus = mapPaymentStatus(txStatus, fraudStatus);
     const isPaid = newPaymentStatus === "paid";
+
+    // Refund callbacks are separate from the original successful settlement.
+    // Do not let the ordinary paid-idempotency guard swallow these events.
+    if (txStatus === "refund" || txStatus === "partial_refund") {
+      const refundKey = String(body.refund_key || "");
+      const refundAmount = Math.max(0, Math.round(Number(body.refund_amount || body.gross_amount || 0)));
+      const { data: refund } = refundKey
+        ? await supabaseAdmin.from("refund_requests").select("id,order_id,amount,status").eq("midtrans_refund_key", refundKey).maybeSingle()
+        : { data: null };
+      if (refund) {
+        const confirmed = Boolean(body.bank_confirmed_at);
+        await supabaseAdmin.from("refund_requests").update({
+          status: confirmed ? "completed" : "processing",
+          completed_at: confirmed ? new Date().toISOString() : null,
+          midtrans_response: body,
+          updated_at: new Date().toISOString(),
+        }).eq("id", refund.id);
+        if (refundAmount >= Math.round(Number(refund.amount)) && confirmed) {
+          const [{ data: completedRefunds }, { data: orderForRefund }] = await Promise.all([
+            supabaseAdmin.from("refund_requests").select("amount").eq("order_id", refund.order_id).eq("status", "completed"),
+            supabaseAdmin.from("orders").select("total_amount").eq("id", refund.order_id).maybeSingle(),
+          ]);
+          const totalRefunded = (completedRefunds || []).reduce((sum, row) => sum + Number(row.amount), 0);
+          if (orderForRefund && totalRefunded >= Number(orderForRefund.total_amount)) {
+            await supabaseAdmin.from("payments").update({ status: "refunded", updated_at: new Date().toISOString() }).eq("order_id", refund.order_id);
+            await supabaseAdmin.from("orders").update({ payment_status: "refunded", updated_at: new Date().toISOString() }).eq("id", refund.order_id);
+          }
+        }
+        return NextResponse.json({ status: "refund_notification_processed" }, { status: 200 });
+      }
+    }
 
     if (orderId.startsWith("SPLIT-")) {
       const { data: part } = await supabaseAdmin.from("split_bill_parts").select("id,split_bill_id,amount,status").eq("midtrans_order_id", orderId).maybeSingle();
@@ -146,6 +178,8 @@ export async function POST(request: NextRequest) {
       .from("orders")
       .update(orderUpdate)
       .eq("id", orderId);
+
+    await finalizeLoyaltyRedemption(orderId, newPaymentStatus);
 
     if (isPaid) await notifyOrderStatus(orderId, "confirmed");
 
