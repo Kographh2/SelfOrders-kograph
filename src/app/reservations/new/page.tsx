@@ -14,7 +14,7 @@ function NewReservationForm() {
   const [otp, setOtp] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [sent, setSent] = useState(false);
-  const [telegramLink, setTelegramLink] = useState("");
+  const [telegramConsent, setTelegramConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [name, setName] = useState("");
@@ -71,16 +71,14 @@ function NewReservationForm() {
     setBusy(true);
     setMessage("");
     setSent(false);
-    setTelegramLink("");
     try {
       const response = await fetch("/api/reservations/telegram-otp", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone, consent: telegramConsent }),
       });
       const result = await response.json();
       if (!response.ok) return setMessage(result.error || "Gagal mengirim permintaan OTP.");
       setSent(true);
       setOtp("");
-      setTelegramLink(String(result.data?.telegramLink || ""));
       setMessage(result.message || "Periksa chat Telegram Anda untuk kode OTP.");
     } catch {
       setMessage("Koneksi terputus. Coba kirim permintaan OTP kembali.");
@@ -156,7 +154,7 @@ function NewReservationForm() {
     setStep("verify");
     setAccessToken("");
     setSent(false);
-    setTelegramLink("");
+    setTelegramConsent(false);
     setOtp("");
     setMessage("");
     sessionStorage.removeItem("reservation_phone_access_token");
@@ -180,25 +178,26 @@ function NewReservationForm() {
         <div className="space-y-5 p-6 sm:p-8">
           {step === "verify" ? <>
             <div className="rounded-2xl bg-blue-50 p-4 text-sm leading-6 text-blue-950">
-              Masukkan nomor HP Anda. Jika nomor sudah terverifikasi, OTP langsung dikirim oleh bot. Untuk pertama kali, buka bot lewat tombol di bawah dan bagikan kontak Anda sendiri sekali; bot akan mencocokkan nomor lalu otomatis mengirim OTP. Tidak perlu mengetik <b>/link</b>.
+              Kode dikirim langsung oleh Telegram Gateway ke chat <b>Verification Codes</b> pada akun Telegram yang terdaftar dengan nomor ini. Pastikan nomor benar dan Anda bersedia menerima kode verifikasi Telegram.
             </div>
-            <label className="block text-sm font-semibold text-slate-800">Nomor HP
+            <label className="block text-sm font-semibold text-slate-800">Nomor telepon akun Telegram
               <input type="tel" autoComplete="tel" placeholder="Contoh: +6281234567890" value={phone} onChange={event => {
                 setPhone(event.target.value);
                 setSent(false);
-                setTelegramLink("");
+                setTelegramConsent(false);
                 setOtp("");
                 setAccessToken("");
                 sessionStorage.removeItem("reservation_phone_access_token");
                 sessionStorage.removeItem("reservation_phone_number");
               }} className="mt-2 w-full rounded-xl border border-slate-300 p-3 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
             </label>
-            <button disabled={busy || !phone.trim()} onClick={send} className="w-full rounded-xl bg-navy-950 p-3 font-semibold text-white transition hover:bg-navy-900 disabled:cursor-not-allowed disabled:opacity-50">
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm leading-5 text-slate-700">
+              <input type="checkbox" checked={telegramConsent} onChange={event => setTelegramConsent(event.target.checked)} className="mt-1 h-4 w-4 accent-blue-700" />
+              <span>Saya setuju nomor ini digunakan untuk meminta kode verifikasi melalui Telegram Gateway.</span>
+            </label>
+            <button disabled={busy || !phone.trim() || !telegramConsent} onClick={send} className="w-full rounded-xl bg-navy-950 p-3 font-semibold text-white transition hover:bg-navy-900 disabled:cursor-not-allowed disabled:opacity-50">
               {busy ? "Mengirim..." : sent ? "Kirim ulang OTP" : "Kirim OTP"}
             </button>
-            {telegramLink && <a href={telegramLink} target="_blank" rel="noreferrer" className="block w-full rounded-xl border border-blue-200 bg-blue-50 p-3 text-center font-semibold text-blue-900 transition hover:bg-blue-100">
-              Buka bot Telegram &amp; bagikan nomor
-            </a>}
             {sent && <div className="space-y-3 border-t border-slate-100 pt-5">
               <label className="block text-sm font-semibold text-slate-800">Masukkan kode OTP 6 digit
                 <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" value={otp} onChange={event => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-center text-xl tracking-[0.4em] outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />

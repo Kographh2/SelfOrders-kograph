@@ -1,97 +1,89 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHmac, randomInt } from "crypto";
 import { normalizePhone } from "@/lib/reservation-phone";
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { writeTelegramActivity } from "@/lib/telegram-activity";
+import { TelegramGatewayError, telegramGatewayCall } from "@/lib/telegram-gateway";
 
-const otpSecret = () => process.env.TELEGRAM_OTP_SECRET || process.env.JWT_SECRET || "";
+type GatewayRequest = { request_id: string };
 
-async function telegramCall(method: string, payload: Record<string, unknown>) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) throw new Error("Bot Telegram belum dikonfigurasi.");
-  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const result = await response.json();
-  if (!response.ok || !result.ok) throw new Error(result.description || `Telegram ${method} gagal.`);
-  return result.result;
-}
-
-function createCode(challengeId: string) {
-  const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
-  const hash = createHmac("sha256", otpSecret()).update(`${challengeId}:${code}`).digest("hex");
-  return { code, hash };
+function gatewayErrorResponse(error: unknown) {
+  const code = error instanceof TelegramGatewayError ? error.code : "UNKNOWN";
+  if (code === "TOKEN_NOT_CONFIGURED") {
+    return NextResponse.json({ error: "Telegram Gateway belum dikonfigurasi di server." }, { status: 503 });
+  }
+  if (["PHONE_NUMBER_INVALID", "PHONE_NUMBER_NOT_FOUND", "USER_NOT_FOUND", "USER_CANNOT_RECEIVE_MESSAGES"].includes(code)) {
+    return NextResponse.json({ error: "Telegram tidak dapat mengirim kode ke nomor ini. Pastikan nomor benar dan terdaftar di Telegram." }, { status: 400 });
+  }
+  if (code === "NETWORK_ERROR" || code === "INVALID_RESPONSE") {
+    return NextResponse.json({ error: "Layanan Telegram Gateway sedang tidak dapat dijangkau. Coba lagi sebentar." }, { status: 502 });
+  }
+  return NextResponse.json({ error: "Telegram Gateway gagal mengirim kode. Periksa nomor dan saldo Gateway, lalu coba lagi." }, { status: 502 });
 }
 
 export async function POST(request: NextRequest) {
   let challengeId = "";
   try {
-    if (!otpSecret()) return NextResponse.json({ error: "Konfigurasi rahasia OTP belum tersedia di server." }, { status: 503 });
     const body = await request.json();
+    if (body.consent !== true) {
+      return NextResponse.json({ error: "Setujui pengiriman kode verifikasi melalui Telegram terlebih dahulu." }, { status: 400 });
+    }
     const phone = normalizePhone(String(body.phone || ""));
-    if (!/^\+[1-9]\d{7,14}$/.test(phone)) return NextResponse.json({ error: "Format nomor HP tidak valid." }, { status: 400 });
+    if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+      return NextResponse.json({ error: "Format nomor HP tidak valid." }, { status: 400 });
+    }
 
     const since = new Date(Date.now() - 15 * 60_000).toISOString();
     const { count, error: countError } = await supabaseAdmin.from("telegram_reservation_otps")
       .select("id", { count: "exact", head: true }).eq("phone", phone).gte("created_at", since);
     if (countError) throw countError;
-    if ((count || 0) >= 3) return NextResponse.json({ error: "Batas permintaan OTP tercapai. Coba lagi dalam 15 menit." }, { status: 429 });
-
-    const { data: link, error: linkError } = await supabaseAdmin.from("telegram_phone_links")
-      .select("telegram_chat_id,telegram_user_id").eq("phone", phone).maybeSingle();
-    if (linkError) throw linkError;
-
-    await supabaseAdmin.from("telegram_reservation_otps").update({ status: "cancelled" })
-      .eq("phone", phone).in("status", ["awaiting_confirmation", "awaiting_link", "awaiting_contact", "sent"]);
-
-    if (!link) {
-      const { data: challenge, error } = await supabaseAdmin.from("telegram_reservation_otps").insert({
-        phone,
-        telegram_chat_id: null,
-        telegram_user_id: null,
-        status: "awaiting_link",
-        expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
-      }).select("id").single();
-      if (error || !challenge) throw new Error("Gagal membuat permintaan verifikasi Telegram.");
-      challengeId = challenge.id;
-
-      const bot = await telegramCall("getMe", {}) as { username?: string };
-      if (!bot.username) throw new Error("Username bot Telegram belum tersedia.");
-      const telegramLink = `https://t.me/${bot.username}?start=rvotp-${challenge.id}`;
-      return NextResponse.json({
-        data: { sent: false, delivery: "contact_required", telegramLink, expiresInSeconds: 600 },
-        message: "Buka bot dan bagikan kontak Anda sendiri sekali. Setelah nomor cocok, bot akan langsung mengirim OTP.",
-      });
+    if ((count || 0) >= 3) {
+      return NextResponse.json({ error: "Batas permintaan kode tercapai. Coba lagi dalam 15 menit." }, { status: 429 });
     }
 
-    const { data: challenge, error } = await supabaseAdmin.from("telegram_reservation_otps").insert({
+    const { error: cancelError } = await supabaseAdmin.from("telegram_reservation_otps").update({ status: "cancelled" })
+      .eq("phone", phone).in("status", ["awaiting_confirmation", "awaiting_link", "awaiting_contact", "gateway_pending", "sent"]);
+    if (cancelError) throw cancelError;
+
+    const { data: challenge, error: insertError } = await supabaseAdmin.from("telegram_reservation_otps").insert({
       phone,
-      telegram_chat_id: link.telegram_chat_id,
-      telegram_user_id: link.telegram_user_id,
-      status: "awaiting_link",
-      expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
+      telegram_chat_id: null,
+      telegram_user_id: null,
+      gateway_consent_at: new Date().toISOString(),
+      status: "gateway_pending",
+      expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
     }).select("id").single();
-    if (error || !challenge) throw new Error("Gagal membuat permintaan OTP.");
+    if (insertError || !challenge) throw new Error("Gagal membuat permintaan verifikasi.");
     challengeId = challenge.id;
 
-    const { code, hash } = createCode(challenge.id);
+    const sent = await telegramGatewayCall<GatewayRequest>("sendVerificationMessage", {
+      phone_number: phone,
+      code_length: 6,
+      ttl: 300,
+      payload: challenge.id,
+    });
+    if (!sent.request_id) throw new TelegramGatewayError("REQUEST_ID_MISSING");
+
     const { data: updated, error: updateError } = await supabaseAdmin.from("telegram_reservation_otps")
-      .update({ status: "sent", otp_hash: hash, expires_at: new Date(Date.now() + 5 * 60_000).toISOString() })
-      .eq("id", challenge.id).eq("status", "awaiting_link").select("id").maybeSingle();
-    if (updateError || !updated) throw new Error("Gagal menyiapkan OTP.");
-    await telegramCall("sendMessage", {
-      chat_id: Number(link.telegram_chat_id),
-      text: `Kode OTP reservasi Anda: ${code}\nBerlaku 5 menit. Jangan bagikan kode ini kepada siapa pun.`,
+      .update({
+        status: "sent",
+        gateway_request_id: sent.request_id,
+        otp_hash: "",
+        attempts: 0,
+        expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+      })
+      .eq("id", challenge.id).eq("status", "gateway_pending").select("id").maybeSingle();
+    if (updateError || !updated) throw new Error("Kode terkirim, tetapi gagal menyimpan status verifikasi. Coba kirim ulang.");
+
+    return NextResponse.json({
+      data: { sent: true, expiresInSeconds: 300 },
+      message: "Kode verifikasi dikirim oleh Telegram ke chat Verification Codes.",
     });
-    await writeTelegramActivity({
-      eventType: "reservation_otp_sent", actorType: "customer", chatId: Number(link.telegram_chat_id),
-      telegramUserId: Number(link.telegram_user_id), details: { phoneLast4: phone.slice(-4) },
-    });
-    return NextResponse.json({ data: { sent: true, delivery: "direct", otpExpiresInSeconds: 300 }, message: "Kode OTP langsung dikirim melalui bot Telegram." });
   } catch (error) {
-    if (challengeId) await supabaseAdmin.from("telegram_reservation_otps").update({ status: "failed" }).eq("id", challengeId).in("status", ["awaiting_link", "sent"]);
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Gagal mengirim OTP." }, { status: 500 });
+    if (challengeId) {
+      await supabaseAdmin.from("telegram_reservation_otps").update({ status: "failed" })
+        .eq("id", challengeId).in("status", ["gateway_pending", "sent"]);
+    }
+    if (error instanceof TelegramGatewayError) return gatewayErrorResponse(error);
+    console.error("Reservation Telegram Gateway send failed:", error instanceof Error ? error.message : "unknown error");
+    return NextResponse.json({ error: "Gagal meminta kode verifikasi. Coba lagi." }, { status: 500 });
   }
 }
