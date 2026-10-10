@@ -171,7 +171,7 @@ test("a late paid polling response cannot restore a previous customer's screen",
   await expect(page.getByText("042", { exact: true })).toHaveCount(0);
 });
 test("real HTTP: hostname rewrite, signed cookie, CSRF and UID-only login rejected", async ({ request }) => {
-  const host = await request.get("/", { headers: { Host: "kiosk.kographh.web.id" }, maxRedirects: 0 });
+  const host = await request.get("/", { headers: { Host: "kiosk.luujaaa.my.id" }, maxRedirects: 0 });
   expect(host.status()).toBe(200); expect(await host.text()).toContain("KIOSK");
   const normal = await request.get("/", { maxRedirects: 0 }); expect([307, 308]).toContain(normal.status());
   const csrf = await request.post("/api/kiosk/session", { data: { station: "fixture" } }); expect(csrf.status()).toBe(403);
