@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
   try {
     assertOrigin(request);
     const body = await request.json();
-    const station = stationConfig(body.station);
+    const station = await stationConfig(body.station);
     const response = reply({ stationId: station.id });
     response.cookies.set(COOKIE, newSession(station), { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict", path: "/api/kiosk", maxAge: 1800 });
     return response;

@@ -1,5 +1,57 @@
 # KIOSK validation — 2026-10-10
 
+## Owner settings update (latest)
+
+The branch mapping now lives in the database and is managed from Dashboard >
+Pengaturan > KIOSK. A current owner can enable/disable branches, choose the single
+root-domain default, and copy/open generated branch links. Store branding is read
+from the real store. Existing orders retain their signed branch through station
+changes, refresh, and payment retries. New orders revalidate the current station.
+
+Validation for this update:
+
+- TypeScript: PASS. The sandbox initially failed allocating memory; the same check
+  passed outside the sandbox. Final isolated production build also checked types.
+- Lint: PASS, no new warnings; 13 existing image/font/hook warnings remain.
+- Production build: PASS using `npm run build:kiosk:test`, final Next.js build,
+  static generation and route checks in `.next-kiosk-test`.
+- Unit/API/real PostgreSQL migration tests: 35/35 PASS.
+- Browser/HTTP tests: 11/11 PASS on Chrome, including owner settings, role denial,
+  branch links, default switching, responsive settings and all previous kiosk flows.
+- Whitespace: `git diff --check` PASS.
+
+The isolated build uses fake Supabase credentials and a local read-only HTTP stub
+on port 3128. Browser data and Midtrans remain mocked; SQL runs in PGlite. No live
+production database was changed and this update was not deployed. Apply
+`MIGRATION_SELFORDER_KIOSK_SETTINGS.sql` after the existing kiosk migration,
+redeploy, then select and save the real branch from the owner dashboard.
+
+New files:
+- `MIGRATION_SELFORDER_KIOSK_SETTINGS.sql`
+- `src/app/api/kiosk/settings/route.ts`
+- `src/components/kiosk/KioskSettings.tsx`
+- `src/components/kiosk/settings.module.css`
+- `tests/kiosk/settings.test.mjs`
+- `tests/kiosk/browser/settings.spec.ts`
+- `tests/kiosk/browser/mock-database.mjs`
+
+Updated files:
+- `src/app/dashboard/settings/page.tsx`
+- `src/lib/kiosk/server.ts`
+- `src/app/api/kiosk/{catalog,session,order}/route.ts`
+- `src/app/kiosk/page.tsx`
+- `src/components/kiosk/KioskExperience.tsx` and `kiosk.module.css`
+- `.env.kiosk.example` (private values removed from the tracked example)
+- `docs/KIOSK.md`, this validation report
+- `playwright.kiosk.config.ts`, `scripts/build-kiosk-test.mjs`
+- `tests/kiosk/{database,session}.test.mjs`, `tests/kiosk/browser/flow.spec.ts`
+
+Visual evidence: `test-results/kiosk-owner-settings.png`,
+`test-results/kiosk-owner-settings-phone.png`, and the updated KIOSK screenshots.
+
+## Initial implementation validation (historical)
+
+
 Implementation is complete in the existing checkout. No live deployment or
 production database migration was performed.
 

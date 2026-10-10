@@ -64,6 +64,8 @@ test("landscape: dine-in, options, cart, payment, confirmation and privacy reset
   const mock = await fixture(page);
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
   await page.goto("/kiosk");
+  await expect(page).toHaveTitle(`${catalog.store.name} · KIOSK`);
+  await expect(page.locator("header")).toContainText(catalog.store.name);
   await page.screenshot({ path: "test-results/kiosk-welcome-landscape.png", fullPage: true });
   await page.getByRole("button", { name: /Makan di sini/ }).click();
   await expect(page.getByRole("button", { name: /Croissant,/ })).toBeDisabled();
@@ -182,4 +184,22 @@ test("real HTTP: hostname rewrite, signed cookie, CSRF and UID-only login reject
   const unknown = await request.post("/api/kiosk/session", { data: { station: "unknown" }, headers: { Origin: "http://localhost:3127" } }); expect(unknown.status()).toBe(503);
   const login = await request.post("/api/auth/login", { data: { supabaseUid: storeId } }); expect(login.status()).toBe(401);
   const cron = await request.get("/api/kiosk/maintenance"); expect(cron.status()).toBe(401);
+  expect((await request.get("/api/kiosk/settings")).status()).toBe(403);
+  expect((await request.put("/api/kiosk/settings", { data: { storeId, enabled: true, isDefault: true } })).status()).toBe(403);
+});
+
+test("next customer uses the updated default branch after reset", async ({ page }) => {
+  await fixture(page);
+  await page.goto("/kiosk");
+  await page.getByRole("button", { name: /Bawa pulang/ }).click();
+  const catalogRequests: string[] = [];
+  await page.route("**/api/kiosk/catalog**", route => {
+    catalogRequests.push(route.request().url());
+    return route.fulfill({ json: { data: { ...catalog, station: { id: "new-default", name: "Cabang Baru" }, store: { ...catalog.store, name: "Cabang Baru" } } } });
+  });
+  await page.getByRole("button", { name: "Mulai ulang" }).click();
+  await page.getByRole("button", { name: "Ya, akhiri sesi" }).click();
+  await expect(page).toHaveTitle("Cabang Baru · KIOSK");
+  expect(catalogRequests.length).toBeGreaterThan(0);
+  expect(catalogRequests.every(url => !new URL(url).searchParams.has("station"))).toBe(true);
 });

@@ -24,10 +24,19 @@ async function api<T>(path: string, method = "GET", body?: unknown): Promise<T> 
 }
 function MenuImage({ item, hero = false }: { item?: MenuItem; hero?: boolean }) {
   const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [item?.image]);
   if (!item?.image || failed) return <div className={styles.imageFallback}><Coffee aria-hidden="true" /><span>{item?.name || "Dibuat untuk momen Anda"}</span></div>;
   // Menu images are supplied by the existing catalog, with a graceful fallback.
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={item.image} alt={item.name} onError={() => setFailed(true)} loading={hero ? "eager" : "lazy"} className={styles.menuImage} />;
+}
+function StoreIdentity({ name, logo }: { name: string; logo?: string | null }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [logo]);
+  return <span className={styles.brandMark}>{logo && !failed ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={logo} alt="" onError={() => setFailed(true)} />
+  ) : name.trim().slice(0, 1).toUpperCase()}</span>;
 }
 
 export default function KioskExperience() {
@@ -52,6 +61,7 @@ export default function KioskExperience() {
   const [announcement, setAnnouncement] = useState("");
   const [online, setOnline] = useState(true);
   const station = useRef<string | null>(null);
+  const requestedStation = useRef<string | null>(null);
   const requestBody = useRef<KioskCheckout | null>(null);
   const busyRef = useRef(false);
   const lastActivity = useRef(Date.now());
@@ -60,11 +70,14 @@ export default function KioskExperience() {
   const activeStep = useRef(step);
   const sessionGeneration = useRef(0);
   activeStep.current = step;
+  useEffect(() => {
+    document.title = catalog?.store.name ? `${catalog.store.name} · KIOSK` : "Self-Order KIOSK";
+  }, [catalog?.store.name]);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const data = await api<KioskCatalog>(`catalog${station.current ? `?station=${encodeURIComponent(station.current)}` : ""}`);
+      const data = await api<KioskCatalog>(`catalog${requestedStation.current ? `?station=${encodeURIComponent(requestedStation.current)}` : ""}`);
       station.current = data.station.id;
       setCatalog(data);
       setCart(previous => previous.map(line => ({ ...line, item: data.items.find(item => item.id === line.menu_item_id) || line.item })));
@@ -91,7 +104,8 @@ export default function KioskExperience() {
 
   useEffect(() => {
     const generation = sessionGeneration.current;
-    station.current = new URLSearchParams(window.location.search).get("station");
+    requestedStation.current = new URLSearchParams(window.location.search).get("station");
+    station.current = requestedStation.current;
     void load().then(async data => {
       if (!data) return;
       try {
@@ -233,8 +247,8 @@ export default function KioskExperience() {
   return <main className={styles.kiosk}>
     <div className={styles.live} role="status" aria-live="polite">{announcement}</div>
     <header className={styles.header}>
-      <div className={styles.brand}><span className={styles.brandMark}>k<span>.</span></span><div><strong>{catalog?.store.name || "Kographh"}</strong><span>SELF-ORDER KIOSK</span></div></div>
-      <div className={styles.location}><MapPin size={17} /><span>{catalog?.station.name || "Selamat datang"}</span></div>
+      <div className={styles.brand}><StoreIdentity name={catalog?.store.name || "KIOSK"} logo={catalog?.store.logo} /><div><strong>{catalog?.store.name || "Selamat datang"}</strong><span>SELF-ORDER KIOSK</span></div></div>
+      <div className={styles.location}><MapPin size={17} /><span>{catalog?.store.address || catalog?.store.name || "Pesan langsung di toko"}</span></div>
       {step !== "welcome" && <button className={styles.quietButton} disabled={busy} onClick={() => setResetPrompt(true)}><Home size={18} /><span>Mulai ulang</span></button>}
     </header>
     {!online && <div className={styles.alert} role="alert">Koneksi terputus. Pesanan tidak akan dikirim ulang secara otomatis. Sambungkan jaringan lalu coba kembali.</div>}
@@ -246,14 +260,15 @@ export default function KioskExperience() {
       })}</nav>}
       <AnimatePresence mode="wait" initial={false}><motion.div key={step} initial={{ opacity: 0, y: reducedMotion ? 0 : 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: reducedMotion ? 0 : .18 }} onAnimationComplete={() => heading.current?.focus({ preventScroll: true })}>
         {step === "welcome" && <section className={styles.welcome}>
-          <div className={styles.welcomeCopy}><span className={styles.eyebrow}>A LITTLE PAUSE. A GOOD TASTE.</span><h1 ref={heading} tabIndex={-1}>Momen enak,<br /><em>mulai di sini.</em></h1><p>Pilih favorit Anda. Kami siapkan dengan sepenuh hati.</p>
+          <div className={styles.welcomeCopy}><span className={styles.welcomeLabel}><span />SELAMAT DATANG DI {catalog.store.name}</span><h1 ref={heading} tabIndex={-1}>Momen enak,<br /><em>mulai di sini.</em></h1><p>Pilih favorit Anda dari {catalog.store.name}. Dibuat sesuai selera, disiapkan dengan sepenuh hati.</p>
             {!catalog.operating.is_open ? <div className={styles.closed}><Clock3 /><h2>Cabang sedang tutup</h2><p>{catalog.operating.next_open_label ? `Buka kembali ${catalog.operating.next_open_label}.` : "Silakan hubungi petugas untuk informasi jam buka."}</p><button className={styles.secondary} onClick={() => void load()}>Periksa kembali</button></div> : <div className={styles.modeChoices}>
               <button disabled={busy || !online} onClick={() => start("dine_in")}><Utensils size={28} /><strong>Makan di sini</strong><span>Nikmati tanpa terburu-buru</span><ArrowRight /></button>
               <button disabled={busy || !online} onClick={() => start("takeaway")}><ShoppingBag size={28} /><strong>Bawa pulang</strong><span>Kebaikan untuk dibawa pergi</span><ArrowRight /></button>
             </div>}
             <span className={styles.welcomeHint}>{busy ? <Loader2 className={styles.spin} size={18} /> : <ShieldCheck size={18} />}{busy ? "Menyiapkan sesi Anda…" : "Tanpa login · Pembayaran digital"}</span>
+            <div className={styles.welcomeJourney} aria-label="Cara memesan"><span><b>01</b>Pilih menu</span><span><b>02</b>Bayar digital</span><span><b>03</b>Ambil pesanan</span></div>
           </div>
-          <div className={styles.welcomeVisual}><MenuImage item={hero} hero /><div className={styles.visualCaption}><span>FRESHLY PREPARED</span><strong>{hero?.name || catalog.store.name}</strong><p>{hero ? "Temukan favorit Anda hari ini." : "Pilihan dari dapur kami, untuk Anda."}</p></div><div className={styles.visualSeal}>MADE<br />WITH CARE</div></div>
+          <div className={styles.welcomeVisual}><MenuImage item={hero} hero /><div className={styles.visualCaption}><span>PILIHAN DARI {catalog.store.name}</span><strong>{hero?.name || catalog.store.name}</strong><p>{hero ? "Temukan favorit Anda hari ini." : "Pilihan dari dapur kami, untuk Anda."}</p></div><div className={styles.visualSeal}>DARI<br />DAPUR KAMI</div></div>
         </section>}
         {step === "menu" && <div className={styles.menuLayout}><section className={styles.menuSection}>
           <div className={styles.sectionHeading}><div><span className={styles.eyebrow}>{mode === "dine_in" ? "MAKAN DI SINI" : "BAWA PULANG"}</span><h1 ref={heading} tabIndex={-1}>Ada rasa untuk setiap selera.</h1></div><span className={styles.itemCount}>{availableItems.length} pilihan</span></div>

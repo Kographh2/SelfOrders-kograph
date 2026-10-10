@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { getStoreOperatingStatus } from "@/lib/store-hours";
 import { parseCheckout } from "@/lib/kiosk/contracts";
-import { assertOrigin, failure, getSession, KioskError, ownedOrder, reply } from "@/lib/kiosk/server";
+import { assertOrigin, failure, getSession, KioskError, ownedOrder, reply, stationConfig } from "@/lib/kiosk/server";
 
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
@@ -23,6 +23,8 @@ export async function POST(request: NextRequest) {
     catch (error) { throw new KioskError(error instanceof Error ? error.message : "Pesanan tidak valid"); }
     const existing = await ownedOrder(session);
     if (!existing) {
+      const station = await stationConfig(session.stationId);
+      if (station.storeId !== session.storeId) throw new KioskError("Cabang berubah. Silakan mulai pesanan baru.", 409);
       const { data: store, error } = await supabaseAdmin.from("stores").select("is_active,manual_closed,opening_hours,timezone").eq("id", session.storeId).single();
       if (error) throw error;
       if (!getStoreOperatingStatus(store).is_open) throw new KioskError("Cabang sedang tutup. Hubungi petugas.", 409);

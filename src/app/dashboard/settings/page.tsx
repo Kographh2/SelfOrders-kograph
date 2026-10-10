@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
-  Settings, User, Lock, Bell, Store,
+  Settings, User, Lock, Bell, Store, Monitor,
   Loader2, CheckCircle, AlertCircle, Eye, EyeOff,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
@@ -12,7 +12,9 @@ import { PageTransition } from "@/components/ui/Animations";
 import { supabase } from "@/lib/supabase";
 import type { Store as StoreType } from "@/types";
 
-type Tab = "profile" | "password" | "store";
+import KioskSettings from "@/components/kiosk/KioskSettings";
+
+type Tab = "profile" | "password" | "store" | "kiosk";
 
 export default function SettingsPage() {
   const { user, token, login } = useAuth();
@@ -158,6 +160,7 @@ export default function SettingsPage() {
     { id: "profile",  label: "Profil",    icon: User  },
     { id: "password", label: "Password",  icon: Lock  },
     ...(isOwnerOrAdmin ? [{ id: "store" as Tab, label: "Staff & Toko", icon: Store }] : []),
+    ...(isOwner ? [{ id: "kiosk" as Tab, label: "KIOSK", icon: Monitor }] : []),
   ];
 
   const MsgBanner = ({ msg }: { msg: { type: "ok" | "err"; text: string } | null }) =>
@@ -177,7 +180,7 @@ export default function SettingsPage() {
   return (
     <PageTransition>
       <Toaster position="top-right" />
-      <div className="p-4 md:p-6 lg:p-8 max-w-2xl">
+      <div className={`p-4 md:p-6 lg:p-8 ${activeTab === "kiosk" ? "max-w-5xl" : "max-w-2xl"}`}>
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 bg-navy-900 rounded-xl flex items-center justify-center">
@@ -189,6 +192,8 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {activeTab === "kiosk" && !isOwner && <p>Akses khusus owner.</p>}
+
         {/* Tabs */}
         <div className="flex gap-1 bg-navy-50 rounded-xl p-1 mb-6">
           {TABS.map(tab => {
@@ -196,6 +201,8 @@ export default function SettingsPage() {
             return (
               <button
                 key={tab.id}
+                aria-label={tab.label}
+                aria-pressed={activeTab === tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
                   activeTab === tab.id
@@ -211,6 +218,7 @@ export default function SettingsPage() {
         </div>
 
         {/* ── Profile Tab ────────────────────────────────────────── */}
+        {activeTab === "kiosk" && isOwner && <KioskSettings token={token} />}
         {activeTab === "profile" && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}

@@ -15,7 +15,7 @@ before(async () => {
     CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY);
     CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS 'SELECT NULL::uuid';
     CREATE SCHEMA storage; CREATE TABLE storage.buckets(id text PRIMARY KEY,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);`);
-  for (const file of ["schema.sql", "MIGRATION_SELFORDER_2026.sql", "MIGRATION_SELFORDER_FEATURES.sql", "MIGRATION_SELFORDER_ADVANCED.sql", "MIGRATION_SELFORDER_OPERATIONS.sql", "MIGRATION_SELFORDER_KIOSK.sql"]) {
+  for (const file of ["schema.sql", "MIGRATION_SELFORDER_2026.sql", "MIGRATION_SELFORDER_FEATURES.sql", "MIGRATION_SELFORDER_ADVANCED.sql", "MIGRATION_SELFORDER_OPERATIONS.sql", "MIGRATION_SELFORDER_KIOSK.sql", "MIGRATION_SELFORDER_KIOSK_SETTINGS.sql"]) {
     try { await db.exec(await readFile(file, "utf8")); }
     catch (error) { throw new Error(`${file}: ${error.message}`); }
   }
@@ -38,6 +38,27 @@ async function settle(id, status, amount = 22200) { return db.query("SELECT sett
 
 test("real migrations apply and kiosk migration is repeatable", async () => {
   await db.exec(await readFile("MIGRATION_SELFORDER_KIOSK.sql", "utf8"));
+  await db.exec(await readFile("MIGRATION_SELFORDER_KIOSK_SETTINGS.sql", "utf8"));
+});
+
+test("owner settings switch the sole default atomically and validate active stores", async () => {
+  await db.query("SELECT save_kiosk_station($1,true,true)", [store]);
+  await db.query("SELECT save_kiosk_station($1,true,true)", [otherStore]);
+  let rows = (await db.query("SELECT * FROM kiosk_stations WHERE is_default")).rows;
+  assert.equal(rows.length, 1); assert.equal(rows[0].store_id, otherStore);
+  await assert.rejects(db.query("SELECT save_kiosk_station($1,false,true)", [store]), /utama harus aktif/);
+  await assert.rejects(db.query("SELECT save_kiosk_station($1,true,true)", [randomUUID()]), /toko aktif/);
+  rows = (await db.query("SELECT * FROM kiosk_stations WHERE is_default")).rows;
+  assert.equal(rows[0].store_id, otherStore);
+  await db.query("SELECT save_kiosk_station($1,false,false)", [otherStore]);
+  assert.equal((await db.query("SELECT * FROM kiosk_stations WHERE is_default")).rows.length, 0);
+  await db.query("UPDATE stores SET is_active=false WHERE id=$1", [otherStore]);
+  await assert.rejects(db.query("SELECT save_kiosk_station($1,true,false)", [otherStore]), /toko aktif/);
+  await db.query("UPDATE stores SET is_active=true WHERE id=$1", [otherStore]);
+  for (const role of ["anon", "authenticated"]) {
+    const permissions = (await db.query("SELECT has_table_privilege($1,'kiosk_stations','SELECT') AS read, has_function_privilege($1,'save_kiosk_station(uuid,boolean,boolean)','EXECUTE') AS write", [role])).rows[0];
+    assert.equal(permissions.read, false); assert.equal(permissions.write, false);
+  }
 });
 test("retry preserves order, queue number, stock and policy acceptance", async () => {
   const input = makeInput(); const beforeStock = await stock();

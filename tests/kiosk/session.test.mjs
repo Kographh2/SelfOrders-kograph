@@ -19,21 +19,21 @@ function load(file, overrides = {}) {
   return mod.exports;
 }
 const contracts = load("src/lib/kiosk/contracts.ts");
-const server = load("src/lib/kiosk/server.ts", { "@/lib/supabase-server": { supabaseAdmin: null }, "./contracts": contracts });
+const server = load("src/lib/kiosk/server.ts", { "@/lib/supabase-server": { supabaseAdmin: { from: () => ({ select: async () => ({ data: [], error: null }) }) } }, "./contracts": contracts });
 const request = token => new NextRequest("https://kiosk.example.test/api/kiosk/order", { headers: { Cookie: `${server.COOKIE}=${token}` } });
-test("signed session is branch-bound; tampered and wrong-audience JWTs fail", () => {
-  const token = server.newSession(server.stationConfig());
+test("signed session is branch-bound; tampered and wrong-audience JWTs fail", async () => {
+  const token = server.newSession(await server.stationConfig());
   assert.equal(server.getSession(request(token)).storeId, store);
   assert.throws(() => server.getSession(request(token + "x")), /Sesi berakhir/);
   assert.throws(() => server.getSession(request(jwt.sign({ sid: store, stationId: "fixture", storeId: store }, secret))), /Sesi berakhir/);
   const expired = jwt.sign({ sid: store, stationId: "fixture", storeId: store }, secret, { issuer: "selforder", audience: "selforder-kiosk", expiresIn: -1 });
   assert.throws(() => server.getSession(request(expired)), /Sesi berakhir/);
-  const moved = jwt.sign({ sid: store, stationId: "fixture", storeId: "22222222-2222-4222-8222-222222222222" }, secret, { issuer: "selforder", audience: "selforder-kiosk" });
+  const moved = jwt.sign({ sid: store, stationId: "fixture", storeId: "invalid-branch" }, secret, { issuer: "selforder", audience: "selforder-kiosk" });
   assert.throws(() => server.getSession(request(moved)), /Sesi berakhir/);
 });
-test("station and origin checks fail closed", () => {
-  assert.throws(() => server.stationConfig("unknown"), /belum terhubung/);
-  assert.throws(() => server.stationConfig("__proto__"), /belum terhubung/);
+test("station and origin checks fail closed", async () => {
+  await assert.rejects(() => server.stationConfig("unknown"), /belum terhubung/);
+  await assert.rejects(() => server.stationConfig("__proto__"), /belum terhubung/);
   assert.throws(() => server.assertOrigin(new NextRequest("https://kiosk.example.test/api/kiosk/session")), /Asal/);
   assert.throws(() => server.assertOrigin(new NextRequest("https://kiosk.example.test/api/kiosk/session", { headers: { Origin: "https://other.example.test" } })), /Asal/);
   assert.doesNotThrow(() => server.assertOrigin(new NextRequest("https://kiosk.example.test/api/kiosk/session", { headers: { Origin: "https://kiosk.example.test" } })));

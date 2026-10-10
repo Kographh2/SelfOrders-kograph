@@ -1,13 +1,24 @@
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { failure, KioskError, reply, stationConfig } from "@/lib/kiosk/server";
+import { COOKIE, failure, getSession, KioskError, ownedOrder, reply, stationConfig } from "@/lib/kiosk/server";
 import { getStoreOperatingStatus } from "@/lib/store-hours";
 import { isMenuScheduledNow } from "@/lib/menu-schedule";
 
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
-    const station = stationConfig(request.nextUrl.searchParams.get("station"));
+    const requested = request.nextUrl.searchParams.get("station");
+    let station: Awaited<ReturnType<typeof stationConfig>> | undefined;
+    // Keep an issued order recoverable on refresh, even after disabling a branch
+    // or changing the default. Reset deletes this cookie before loading a new menu.
+    if (request.cookies.has(COOKIE)) {
+      let session;
+      try { session = getSession(request); } catch { /* Expired sessions use current configuration. */ }
+      if (session && (!requested || requested === session.stationId) && await ownedOrder(session)) {
+        station = { id: session.stationId, storeId: session.storeId, name: "" };
+      }
+    }
+    station ??= await stationConfig(requested);
     const results = await Promise.all([
       supabaseAdmin.from("stores").select("id,name,address,logo,is_active,tax_rate,service_charge_rate,timezone,opening_hours,manual_closed").eq("id", station.storeId).single(),
       supabaseAdmin.from("categories").select("id,name,display_order").eq("store_id", station.storeId).eq("is_active", true).order("display_order"),
@@ -24,6 +35,6 @@ export async function GET(request: NextRequest) {
       const doc = rows.find(d => d.document_type === type && d.store_id === station.storeId) || rows.find(d => d.document_type === type && !d.store_id);
       return doc ? [doc] : [];
     });
-    return reply({ station: { id: station.id, name: station.name }, store, operating: getStoreOperatingStatus(store), categories: categories.data, items: (items.data || []).filter(item => isMenuScheduledNow(item, store.timezone || "Asia/Jakarta")), tables: tables.data, policies });
+    return reply({ station: { id: station.id, name: store.name }, store, operating: getStoreOperatingStatus(store), categories: categories.data, items: (items.data || []).filter(item => isMenuScheduledNow(item, store.timezone || "Asia/Jakarta")), tables: tables.data, policies });
   } catch (error) { return failure(error); }
 }

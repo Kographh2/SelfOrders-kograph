@@ -1,7 +1,7 @@
 # KIOSK Self-Order
 
 KIOSK runs inside this Next.js application at `/kiosk`. The exact host
-`kiosk.kographh.web.id` rewrites `/` to `/kiosk`; existing routes, APIs, assets,
+`kiosk.luujaaa.my.id` rewrites `/` to `/kiosk`; existing routes, APIs, assets,
 and the main domain retain their existing behavior. There is no second project,
 repository, database, or deployment.
 
@@ -11,25 +11,34 @@ repository, database, or deployment.
    if not already applied. Apply **`MIGRATION_SELFORDER_KIOSK.sql` before deploying
    this application version**. The shared payment routes now read KIOSK columns.
    Run migrations using Supabase SQL Editor with an authorized database role.
-2. Copy the variable names in `.env.kiosk.example` to the existing local/Vercel
-   configuration; replace every placeholder. Obtain branch UUIDs from the existing
-   `stores` table. Example structure (not usable production data):
+2. Apply **MIGRATION_SELFORDER_KIOSK_SETTINGS.sql**, then deploy this version.
+   In the existing Vercel environment keep private `KIOSK_SESSION_SECRET` and
+   `CRON_SECRET`, plus `KIOSK_HOSTNAME=kiosk.luujaaa.my.id`.
+   Log in as **owner**, open **Dashboard > Pengaturan > KIOSK**, select a real
+   store by name, enable orders, select **Jadikan cabang utama**, then save.
+   There is no UUID or JSON to type. The generated **Buka KIOSK** link is specific
+   to that store; the root domain uses the single default branch. Repeat for other
+   branches. Future changes require only reloading the kiosk, not redeploying.
 
-   ```env
-   KIOSK_HOSTNAME=kiosk.kographh.web.id
-   KIOSK_DEFAULT_STATION=counter-01
-   KIOSK_STATIONS={"counter-01":{"storeId":"REAL_BRANCH_UUID","name":"Konter utama"},"counter-02":{"storeId":"ANOTHER_REAL_BRANCH_UUID","name":"Konter lantai dua"}}
-   KIOSK_SESSION_SECRET=<random-private-secret-at-least-32-characters>
-   CRON_SECRET=<different-random-private-secret>
-   ```
+   Station settings are stored in `kiosk_stations`, with one immutable station
+   identifier per store. Only a current database owner role may read/write the
+   settings API. Database writes use an atomic RPC with a single-default constraint.
+   Station IDs are public routing identifiers, not device credentials. Lock the
+   restaurant browser to the intended URL and use one active tab per terminal.
 
-   Open `/kiosk?station=counter-02` for another configured station. With no query,
-   the default station is used. An unknown station or missing configuration fails
-   closed instead of choosing the first branch. Station names/IDs are routing
-   identifiers, not device credentials. Lock the installed restaurant browser to
-   its intended URL through the operating system's kiosk/assigned-access mode.
-   The API ignores client-supplied branch IDs and signs the selected server mapping
-   into a 30-minute HttpOnly cookie. Use one active browser tab per terminal.
+   Database configuration takes precedence over old `KIOSK_STATIONS` and
+   `KIOSK_DEFAULT_STATION` values, even malformed JSON. After saving the first
+   branch, remove those two legacy variables at your next deployment. Existing
+   installations with an empty or missing settings table can still use the old
+   mapping temporarily. An unavailable database never falls back to stale mappings.
+   Disabling every station or clearing the default deliberately closes the root
+   kiosk; it never silently selects another branch.
+
+   Store names, logos, address and browser title follow real store data. Rename a
+   store in **Manajemen Toko**, then reload KIOSK. No independent kiosk brand field
+   is needed. Disabled kiosks reject new sessions and orders, but already-created
+   orders can still complete payment through their signed branch-bound session.
+
 3. Keep existing Supabase credentials and Midtrans keys. Set both
    `MIDTRANS_IS_PRODUCTION` and `NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION` to the same
    environment. Test sandbox first. QRIS/GoPay/ShopeePay availability also depends
@@ -42,7 +51,7 @@ repository, database, or deployment.
 ## Vercel, DNS and SSL
 
 1. In **the existing Vercel project**, open Settings → Domains and add
-   `kiosk.kographh.web.id` to the same production deployment. Configure it as a
+   `kiosk.luujaaa.my.id` to the same production deployment. Configure it as a
    domain serving the project, not a redirect to the main site.
 2. At the authoritative DNS provider for `kographh.web.id`, create a CNAME with
    name `kiosk` and the **exact target displayed by that Vercel project's domain
