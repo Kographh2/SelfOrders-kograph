@@ -15,8 +15,9 @@ export async function POST(request: NextRequest) {
       if (!payment) return NextResponse.json({ error: "Kode QR pembayaran tidak valid" }, { status: 404 });
       orderId = payment.order_id;
     }
-    const { data: order } = await supabaseAdmin.from("orders").select("id,store_id,user_id,anonymous_session_id,order_number,total_amount,payment_status,status").eq("id", orderId).single();
+    const { data: order } = await supabaseAdmin.from("orders").select("id,store_id,user_id,anonymous_session_id,order_number,total_amount,payment_status,status,kiosk_session_id").eq("id", orderId).single();
     if (!order) return NextResponse.json({ error: "Pesanan tidak ditemukan" }, { status: 404 });
+    if (order.kiosk_session_id) return NextResponse.json({ error: "Pesanan KIOSK memakai pembayaran digital. Periksa status Midtrans sebelum melakukan tindakan lain." }, { status: 409 });
     const { data: activeSplit } = await supabaseAdmin.from("split_bills").select("id").eq("order_id", orderId).eq("status", "active").maybeSingle();
     if (activeSplit) return NextResponse.json({ error: "Pesanan ini sedang menggunakan split bill" }, { status: 409 });
     if (body.confirm === true) {

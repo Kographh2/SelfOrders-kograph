@@ -18,6 +18,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { supabaseUid, email: bodyEmail } = body;
+    const accessToken = request.headers.get("authorization")?.replace(/^Bearer /, "");
+    if (!accessToken) return NextResponse.json({ error: "Sesi Supabase diperlukan" }, { status: 401 });
+    const verified = await supabaseAdmin.auth.getUser(accessToken);
+    if (verified.error || !verified.data.user || verified.data.user.id !== supabaseUid) {
+      return NextResponse.json({ error: "Sesi Supabase tidak valid" }, { status: 401 });
+    }
 
     if (!supabaseUid) {
       return NextResponse.json({ error: "supabaseUid required" }, { status: 400 });

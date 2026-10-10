@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase-server";
 import { verifyMidtransSignature } from "@/lib/midtrans";
 import { notifyOrderStatus } from "@/lib/push-notifications";
 import { finalizeLoyaltyRedemption } from "@/lib/loyalty-order";
+import { settleKioskPayment } from "@/lib/kiosk/payment";
 
 export const dynamic = "force-dynamic";
 
@@ -163,6 +164,17 @@ export async function POST(request: NextRequest) {
       const {error:reservationUpdateError}=await supabaseAdmin.from("reservations").update(reservationUpdate).eq("id",reservation.id);
       if(reservationUpdateError)throw reservationUpdateError;
       return NextResponse.json({status:isPaid?"reservation_deposit_paid":depositStatus});
+    }
+
+    // KIOSK uses one atomic settlement for both webhook and server-side polling.
+    const { data: kioskOrder, error: kioskLookupError } = await supabaseAdmin.from("orders")
+      .select("id,kiosk_session_id").eq("id", orderId).maybeSingle();
+    if (kioskLookupError) throw kioskLookupError;
+    if (kioskOrder?.kiosk_session_id) {
+      if (!incomingSignature) return NextResponse.json({ error: "Signature required" }, { status: 403 });
+      if (["refund", "partial_refund"].includes(txStatus)) return NextResponse.json({ error: "Refund requires a matching refund request" }, { status: 409 });
+      const data = await settleKioskPayment(orderId, grossAmount, txStatus, transactionId, fraudStatus);
+      return NextResponse.json({ data });
     }
 
     // Update payment record

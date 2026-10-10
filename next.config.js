@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Keep production-browser verification isolated from an active `next dev`.
+  distDir: process.env.SELFORDER_BUILD_DIR || ".next",
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**" },

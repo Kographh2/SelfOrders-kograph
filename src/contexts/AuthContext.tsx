@@ -39,11 +39,12 @@ function getStoredUser(): User | null {
   try { return JSON.parse(raw) as User; } catch { return null; }
 }
 
-async function fetchJwt(supabaseUid: string, email: string): Promise<{ token: string; user: User } | null> {
+async function fetchJwt(supabaseUid: string, email: string, accessToken: string): Promise<{ token: string; user: User } | null> {
   try {
+    if (!accessToken) return null;
     const res = await fetch("/api/auth/login", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({ supabaseUid, email }),
     });
     if (!res.ok) return null;
@@ -86,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           event === "USER_UPDATED" ||
           !ls(TOKEN_KEY)
         ) {
-          const result = await fetchJwt(session.user.id, session.user.email ?? "");
+          const result = await fetchJwt(session.user.id, session.user.email ?? "", session.access_token);
           if (result) saveSession(result.user, result.token);
         }
         setIsLoading(false);
@@ -122,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error("Sesi tidak valid. Silakan login ulang.");
       }
 
-      const result = await fetchJwt(data.user.id, data.user.email ?? trimmed);
+      const result = await fetchJwt(data.user.id, data.user.email ?? trimmed, data.session?.access_token || "");
       if (!result) throw new Error("Gagal memuat profil. Coba lagi.");
       saveSession(result.user, result.token);
     } finally {
@@ -151,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       if (!data?.user) throw new Error("Registrasi gagal");
       if (data.session) {
-        const result = await fetchJwt(data.user.id, trimmedEmail);
+        const result = await fetchJwt(data.user.id, trimmedEmail, data.session.access_token);
         if (result) saveSession(result.user, result.token);
       }
     } finally {
@@ -165,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase.auth.signInAnonymously();
       if (error) throw new Error(error.message);
       if (!data?.user) throw new Error("Gagal membuat sesi tamu");
-      const result = await fetchJwt(data.user.id, "");
+      const result = await fetchJwt(data.user.id, "", data.session?.access_token || "");
       if (result) saveSession(result.user, result.token);
     } catch (e) {
       console.warn("[auth] anonymousLogin gagal:", e);

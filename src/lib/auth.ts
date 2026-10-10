@@ -4,10 +4,10 @@ import jwt from "jsonwebtoken";
 const JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {
-  console.warn("[auth] JWT_SECRET is not set — using fallback (CHANGE IN PRODUCTION)");
+  console.warn("[auth] JWT_SECRET is not set — authentication is unavailable");
 }
 
-const SECRET = JWT_SECRET ?? "change-this-secret-in-production-immediately";
+const SECRET = JWT_SECRET;
 
 export interface DecodedToken {
   userId: string;
@@ -21,6 +21,7 @@ export interface DecodedToken {
 export async function getAuthUser(
   request: NextRequest
 ): Promise<DecodedToken | null> {
+  if (!SECRET) return null;
   const authHeader = request.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) return null;
 
@@ -39,6 +40,7 @@ export function createToken(user: {
   role: string;
   storeId?: string;
 }) {
+  if (!SECRET) throw new Error("JWT_SECRET is required for authentication");
   return jwt.sign(
     {
       userId: user.id,
