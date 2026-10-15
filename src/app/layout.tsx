@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./restaurant.css";
 import { OrderProvider } from "@/contexts/OrderContext";
 import { PreferencesProvider } from "@/contexts/PreferencesContext";
 import FloatingNav from "@/components/FloatingNav";

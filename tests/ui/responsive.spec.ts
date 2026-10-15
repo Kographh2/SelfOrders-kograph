@@ -29,6 +29,8 @@ for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/menu?store=ui-store&table=7");
     await expect(page.getByRole("heading", { name: "Ruang Rasa" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `artifacts/ui/restaurant-menu-${width}.png`, fullPage: true });
     const dock = page.getByRole("navigation", { name: "Navigasi utama" });
     await page.getByRole("button", { name: "Tambah Kopi Susu Gula Aren", exact: true }).click();
     await dock.getByRole("link", { name: "Cari", exact: true }).click();

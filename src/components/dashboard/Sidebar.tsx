@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  LayoutDashboard, ShoppingBag, ChefHat, UtensilsCrossed, Clock3,
+  Megaphone, LayoutDashboard, ShoppingBag, ChefHat, UtensilsCrossed, Clock3,
   Tag, Table2, QrCode, Users, Settings, Store, LogOut, Boxes, BarChart3, ClipboardList, MessageCircle,
   ChevronLeft, ChevronRight, Menu, X, ScanBarcode, BadgePercent, Truck, Gift, ClipboardCheck, ShieldCheck, MessageSquareWarning, TrendingUp,
 } from "lucide-react";
@@ -19,6 +19,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { href: "/dashboard/ads", label: "Iklan & Penawaran", icon: Megaphone, roles: ["owner","admin"] },
   { href: "/dashboard",          label: "Dashboard",   icon: LayoutDashboard,  roles: ["owner","admin","kasir"] },
   { href: "/dashboard/orders",   label: "Pesanan",     icon: ShoppingBag,      roles: ["owner","admin","kasir"] },
   { href: "/dashboard/kitchen",  label: "Dapur",       icon: ChefHat,          roles: ["owner","admin","kasir"] },
