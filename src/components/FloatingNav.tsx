@@ -1,193 +1,75 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Home, Search, ShoppingCart, User, LogOut, LayoutDashboard, ScanLine } from "lucide-react";
-import { useAuth, useRole } from "@/contexts/AuthContext";
+import { useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { motion, useReducedMotion } from "framer-motion";
+import { Home, Search, ShoppingBag, UserRound, ScanLine } from "lucide-react";
+import { useOrder } from "@/contexts/OrderContext";
+import { usePreferences } from "@/contexts/PreferencesContext";
+import QRScannerModal from "@/components/QRScannerModal";
 
-interface FloatingNavProps {
-  cartCount?: number;
-  onCartClick?: () => void;
-  onProfileClick?: () => void;
-  onSearchClick?: () => void;
-  onScanClick?: () => void;
-}
-
-export default function FloatingNav({
-  cartCount = 0,
-  onCartClick,
-  onProfileClick,
-  onSearchClick,
-  onScanClick,
-}: FloatingNavProps) {
-  const [showMenu, setShowMenu] = useState(false);
-  const reduceMotion = useReducedMotion();
-  const profileRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!showMenu) return;
-    panelRef.current?.querySelector<HTMLElement>("a, button")?.focus();
-    const dismiss = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { setShowMenu(false); profileRef.current?.focus(); }
-      if (event.key === "Tab") {
-        const controls = panelRef.current?.querySelectorAll<HTMLElement>("a, button");
-        if (!controls?.length) return;
-        const first = controls[0], last = controls[controls.length - 1];
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-      }
-    };
-    document.addEventListener("keydown", dismiss);
-    return () => document.removeEventListener("keydown", dismiss);
-  }, [showMenu]);
-
-  // ── Fix hydration: only read auth state after mount ───────────
-  // SSR renders the "not logged in" state (User icon).
-  // After hydration the client syncs to the real auth state.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-
-  const { user, logout, isAuthenticated } = useAuth();
-  const { isStaff } = useRole();
-
-  // While not mounted, always render the non-auth version to match SSR
-  const showUserAvatar = mounted && isAuthenticated;
-  const showStaffLink  = mounted && isStaff;
-
-  return (
-    <>
-      {/* Profile dropdown */}
-      <AnimatePresence>
-        {showMenu && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[51]"
-              onClick={() => setShowMenu(false)}
-            />
-            <motion.div
-              ref={panelRef}
-              id="account-panel" role="dialog" aria-label="Akun" aria-modal="true"
-              initial={reduceMotion ? false : { opacity: 0, y: 8, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.96 }}
-              transition={{ duration: 0.15 }}
-              className="account-panel liquid-glass"
-            >
-              {mounted && isAuthenticated && user && (
-                <div className="p-3 border-b border-navy-100">
-                  <p className="text-sm font-semibold text-navy-900 truncate">{user.name || "User"}</p>
-                  <p className="text-xs text-navy-400 capitalize">{user.role}</p>
-                </div>
-              )}
-
-              {showStaffLink && (
-                <Link
-                  href="/dashboard"
-                  onClick={() => setShowMenu(false)}
-                  className="flex items-center gap-2 px-3 py-2.5 text-sm text-navy-700 hover:bg-navy-50 transition-colors"
-                >
-                  <LayoutDashboard className="w-4 h-4" />
-                  Dashboard
-                </Link>
-              )}
-
-              {mounted && isAuthenticated && (
-                <Link href="/profile" onClick={() => setShowMenu(false)} className="flex items-center gap-2 px-3 py-2.5 text-sm text-navy-700 hover:bg-navy-50">
-                  <User className="w-4 h-4" /> Profil & Tampilan
-                </Link>
-              )}
-
-              {mounted && isAuthenticated ? (
-                <button
-                  onClick={() => { logout(); setShowMenu(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Keluar
-                </button>
-              ) : (
-                <button
-                  onClick={() => { onProfileClick?.(); setShowMenu(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-navy-700 hover:bg-navy-50 transition-colors"
-                >
-                  <User className="w-4 h-4" />
-                  Masuk / Daftar
-                </button>
-              )}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* Bottom nav */}
-      <motion.nav
-        aria-label="Navigasi utama"
-        initial={reduceMotion ? false : { y: 80, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="floating-dock liquid-glass"
-      >
-        <div className="dock-items">
-          {/* Home */}
-          <button onClick={() => window.scrollTo({ top: 0, behavior: reduceMotion ? "instant" : "smooth" })} className="dock-item dock-item-active" aria-current="page" aria-label="Menu">
-            <Home className="w-6 h-6" />
-            <span className="text-[10px] font-medium">Menu</span>
-          </button>
-
-          {/* Search */}
-          <button onClick={onSearchClick} className="dock-item" aria-label="Cari">
-            <Search className="w-6 h-6" />
-            <span className="text-[10px] font-medium">Cari</span>
-          </button>
-
-          <motion.button whileTap={reduceMotion ? undefined : {scale:.96}} onClick={onScanClick} className="dock-item dock-scan" aria-label="Scan QR meja"><ScanLine className="h-6 w-6"/><span>Scan QR</span></motion.button>
-
-          {/* Cart */}
-          <motion.button
-            whileTap={{ scale: 0.92 }}
-            onClick={onCartClick}
-            className="dock-item relative"
-            aria-label={`Keranjang, ${cartCount} item`}
-          >
-            <ShoppingCart className="w-6 h-6" />
-            <span className="text-[10px] font-medium">Keranjang</span>
-            {cartCount > 0 && (
-              <motion.span
-                key={cartCount}
-                initial={{ scale: 0.6 }}
-                animate={{ scale: 1 }}
-                className="absolute -top-0.5 right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-blue-600 px-1 text-[9px] font-bold text-white"
-              >
-                {cartCount > 99 ? "99+" : cartCount}
-              </motion.span>
-            )}
-          </motion.button>
-
-          {/* Profile */}
-          <button
-            onClick={() => setShowMenu(v => !v)}
-            ref={profileRef} aria-expanded={showMenu} aria-controls="account-panel" aria-haspopup="dialog"
-            className={`dock-item ${showMenu ? "dock-item-active" : ""}`}
-            aria-label="Akun"
-          >
-            {/* Always render User icon on SSR, swap to avatar after mount */}
-            {showUserAvatar ? (
-              <div className="w-6 h-6 bg-navy-900 rounded-full flex items-center justify-center">
-                <span className="text-white text-[10px] font-bold">
-                  {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
-                </span>
-              </div>
-            ) : (
-              <User className="w-6 h-6" />
-            )}
-            <span className="text-[10px] font-medium">Akun</span>
-          </button>
-        </div>
-      </motion.nav>
-    </>
-  );
+const tabs = [
+  { href: "/menu", label: "Menu", Icon: Home },
+  { href: "/search", label: "Cari", Icon: Search },
+  { href: "/cart", label: "Keranjang", Icon: ShoppingBag },
+  { href: "/profile", label: "Profil", Icon: UserRound },
+];
+export default function FloatingNav() {
+  const pathname = usePathname(), router = useRouter();
+  const { cart } = useOrder();
+  const { preferences } = usePreferences();
+  const systemReduced = useReducedMotion();
+  const reduced = systemReduced || preferences.reduceMotion;
+  const [preview, setPreview] = useState<number | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const gesture = useRef<{ start: number; moved: boolean; index: number } | null>(null);
+  const suppressClick = useRef(false);
+  const track = useRef<HTMLDivElement>(null);
+  const active = pathname === "/settings" ? 3 : Math.max(0, tabs.findIndex(tab => tab.href === pathname));
+  const visible = ["/menu", "/search", "/cart", "/profile", "/settings"].includes(pathname);
+  const count = cart.reduce((total, item) => total + item.quantity, 0);
+  const indexAt = (x: number) => {
+    const rect = track.current!.getBoundingClientRect();
+    return Math.max(0, Math.min(3, Math.floor((x - rect.left) / (rect.width / 4))));
+  };
+  if (!visible) return null;
+  return <>
+    <nav className="consumer-dock" aria-label="Navigasi utama">
+      <div ref={track} className={`glass-tabbar liquid-glass ${preview !== null ? "is-dragging" : ""}`}
+        onPointerDown={event => {
+          if (event.button !== 0) return;
+          suppressClick.current = false;
+          gesture.current = { start: event.clientX, moved: false, index: indexAt(event.clientX) };
+        }}
+        onPointerMove={event => {
+          const current = gesture.current;
+          if (!current) return;
+          if (Math.abs(event.clientX - current.start) > 8) {
+            if (!current.moved) event.currentTarget.setPointerCapture(event.pointerId);
+            current.moved = true; current.index = indexAt(event.clientX);
+            const rect = track.current!.getBoundingClientRect();
+            setPreview(Math.max(0, Math.min(3, (event.clientX - rect.left) / (rect.width / 4) - .5)));
+          }
+        }}
+        onPointerUp={event => {
+          const current = gesture.current;
+          if (current?.moved) { suppressClick.current = true; window.setTimeout(() => { suppressClick.current = false; }, 100); router.push(tabs[current.index].href); }
+          gesture.current = null; setPreview(null);
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={() => { gesture.current = null; setPreview(null); }}
+        onLostPointerCapture={() => { gesture.current = null; setPreview(null); }}
+        onClickCapture={event => { if (suppressClick.current) { event.preventDefault(); event.stopPropagation(); suppressClick.current = false; } }}>
+        <motion.div className="glass-lens" aria-hidden="true" initial={false}
+          animate={{ x: `${(preview ?? active) * 100}%`, scale: preview !== null && !reduced ? 1.045 : 1 }}
+          transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 34, mass: .8 }}/>
+        {tabs.map(({ href, label, Icon }, index) => <Link key={href} href={href} aria-current={active === index ? "page" : undefined} aria-label={href === "/cart" ? `Keranjang, ${count} item` : label} className={`glass-tab ${active === index ? "is-active" : ""}`}>
+          <span className="tab-icon"><Icon size={22} strokeWidth={active === index ? 2.2 : 1.7}/>{href === "/cart" && count > 0 && <span className="tab-badge">{count > 99 ? "99+" : count}</span>}</span><span>{label}</span>
+        </Link>)}
+      </div>
+      <button className="dock-scan-button liquid-glass" onClick={() => setScanning(true)} aria-label="Scan QR meja"><ScanLine size={23}/></button>
+    </nav>
+    <QRScannerModal open={scanning} onClose={() => setScanning(false)}/>
+  </>;
 }

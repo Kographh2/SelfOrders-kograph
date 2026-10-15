@@ -1,19 +1,18 @@
-# Responsive UI refresh
+# Consumer pages and Liquid Glass navigation
 
-The refresh updates shared typography, focus states, mobile form sizing, dark-theme text contrast, and reduced motion. The menu uses quieter opaque cards, a separated action row, larger quantity controls, and a floating glass navigation dock. The dashboard shell reserves mobile toolbar space and constrains its content width; its desktop sidebar stays within the viewport. Cart and payment sheets support viewport height, safe areas, Escape, focus containment, and focus restoration.
+Navigation now opens real routes: `/menu`, `/search`, `/cart`, and `/profile`. `/settings` is accessible from the profile. The profile has identity, order/wallet/reward shortcuts, account information, staff dashboard access, help, and explicit logout confirmation. There is no account dropdown in the navbar.
 
-Glass is a CSS adaptation, not Apple's native rendering API. Reference: https://developer.apple.com/design/human-interface-guidelines/materials . Glass is limited to navigation and its account panel, with opaque fallbacks for unsupported blur, reduced transparency, and increased contrast.
+The shared navbar stays mounted between these routes. Its spring-driven glass lens follows a horizontal pointer drag, commits the destination on release, and cancels safely. Normal links still support keyboard activation, browser back/forward, and opening in another tab. QR scanning is a separate action. CSS materials adapt to dark mode, reduced transparency, increased contrast, and unsupported backdrop filtering.
 
-## Local verification
+Settings persist theme (light/dark/system), reduced motion, reduced transparency, and menu-content language. Notification controls use the existing subscription endpoints and distinguish browser permission from an actual push subscription. Live push delivery needs configured VAPID credentials and device permission.
 
-- TypeScript: passed.
-- Production build: isolated `.next-ui` output; lint warnings remain in existing image/font/hook code.
-- Browser suite: `npm run test:ui` against the isolated build. Uses mocked catalog and API responses, not live payments.
-- Widths: 320, 390, 768, 1440 CSS pixels. Checks horizontal overflow, add/remove quantity, cart, account Escape/focus, search empty state.
-- Dark/reduced-motion short screen: 390 x 568, verifies payment CTA can be scrolled into view.
-- Screenshots: `artifacts/ui/` (generated, ignored by git).
+The order provider retains cart lines, selected options, store, table, reservation context, order type, and pickup time across consumer routes and reloads using session storage. Drafts expire after 12 hours without being saved. Storage failure falls back to memory. Changing the store clears the old cart and table/reservation context. Pricing and payment authorization remain server-controlled.
 
-Build before running the suite in PowerShell:
+## Verification
+
+Local result: production build passed; TypeScript passed; eight Chrome browser tests passed. Lint reports image, font, and pre-existing hook warnings.
+
+Build and test with PowerShell:
 
 ```powershell
 $env:SELFORDER_BUILD_DIR='.next-ui'
@@ -22,4 +21,8 @@ npm.cmd run build
 npm.cmd run test:ui
 ```
 
-Chrome verification does not establish physical iPhone/Safari compatibility. Authenticated dashboard screens, live Supabase/Midtrans, and deployment have not been browser-verified in this UI pass. Existing kiosk styling and business/payment contracts are retained.
+The browser suite uses a fixture catalog and mocked API responses; it does not submit live payments. Coverage includes widths 320/390/768/1440, page navigation, search, quantity updates, reload persistence, store/table isolation, settings persistence, drag navigation, keyboard navigation, empty cart, pickup validation, and a scrollable payment panel on a short dark-mode screen. Screenshots are generated in `artifacts/ui/` (ignored by git).
+
+Physical iPhone/Safari, live push delivery, Supabase/Midtrans, authenticated dashboard screens, and deployment need separate live verification. Liquid Glass is a web interpretation of Apple's guidance, not the native iOS rendering API.
+
+References: https://developer.apple.com/design/human-interface-guidelines/materials and https://developer.apple.com/design/human-interface-guidelines/tab-bars .
