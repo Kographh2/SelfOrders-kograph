@@ -11,7 +11,8 @@
     "print:bridge": "node scripts/escpos-bridge.mjs",
     "test:kiosk": "node --test tests/kiosk/*.test.mjs",
     "build:kiosk:test": "node scripts/build-kiosk-test.mjs",
-    "test:kiosk:browser": "playwright test --config=playwright.kiosk.config.ts"
+    "test:kiosk:browser": "playwright test --config=playwright.kiosk.config.ts",
+    "test:ui": "playwright test --config=playwright.ui.config.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

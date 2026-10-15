@@ -61,15 +61,17 @@ export default function Sidebar() {
     const Icon = item.icon;
     return (
       <Link
+        aria-current={isActive ? "page" : undefined}
+        title={item.label}
         href={item.href}
         onClick={() => setMobileOpen(false)}
         className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group ${
           isActive
-            ? "bg-gold text-navy-950 font-semibold shadow-soft"
+            ? "bg-blue-600 text-white font-semibold shadow-soft"
             : "text-navy-300 hover:bg-navy-800 hover:text-bone-50"
         }`}
       >
-        <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-navy-900" : ""}`} />
+        <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-white" : ""}`} />
         {(!collapsed || mobileOpen) && (
           <span className="text-sm truncate">{item.label}</span>
         )}
@@ -120,8 +122,8 @@ export default function Sidebar() {
       {/* Mobile hamburger */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="fixed top-4 left-4 z-50 lg:hidden p-2 bg-navy-900 text-bone-50 rounded-xl shadow-soft-lg"
-        aria-label="Buka menu"
+        className="dashboard-menu-toggle liquid-glass fixed z-40 lg:hidden"
+        aria-expanded={mobileOpen} aria-label="Buka menu"
       >
         <Menu className="w-5 h-5" />
       </button>
@@ -142,7 +144,7 @@ export default function Sidebar() {
               animate={{ x: 0 }}
               exit={{ x: -280 }}
               transition={{ type: "tween", duration: 0.22 }}
-              className="fixed left-0 top-0 bottom-0 w-64 bg-navy-900 z-50 lg:hidden"
+              className="fixed left-0 top-0 bottom-0 w-64 max-w-[85vw] bg-navy-900 z-50 lg:hidden"
             >
               <button
                 onClick={() => setMobileOpen(false)}
@@ -159,7 +161,7 @@ export default function Sidebar() {
 
       {/* Desktop sidebar */}
       <aside
-        className={`hidden lg:flex flex-col bg-navy-900 transition-all duration-200 flex-shrink-0 ${
+        className={`dashboard-sidebar sticky top-0 h-dvh relative hidden lg:flex flex-col bg-navy-900 transition-all duration-200 flex-shrink-0 ${
           collapsed ? "w-[68px]" : "w-56"
         }`}
       >

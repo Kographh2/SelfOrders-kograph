@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import MotionProvider from "@/components/MotionProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import PushNotificationProvider from "@/components/PushNotificationProvider";
 
@@ -13,7 +14,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: "cover",
   themeColor: "#0F1E2B",
 };
@@ -32,9 +32,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="antialiased">
-        <AuthProvider>
+        <MotionProvider><AuthProvider>
           <PushNotificationProvider>{children}</PushNotificationProvider>
-        </AuthProvider>
+        </AuthProvider></MotionProvider>
       </body>
     </html>
   );

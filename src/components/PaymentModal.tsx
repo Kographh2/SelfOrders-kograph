@@ -1,4 +1,5 @@
 "use client";
+import { useSheet } from "@/hooks/useSheet";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
@@ -18,6 +19,7 @@ const METHODS = [
 type Method = (typeof METHODS)[number]["id"];
 
 export default function PaymentModal(props:Props) {
+  const sheetRef = useSheet(props.isOpen, props.onClose);
   const { token, user } = useAuth();
   const [method,setMethod] = useState<Method|null>(null);
   const [processing,setProcessing] = useState(false);
@@ -91,8 +93,8 @@ export default function PaymentModal(props:Props) {
     }
   };
   return <AnimatePresence>{props.isOpen&&<motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-[110] flex items-end bg-navy-950/70 p-0 backdrop-blur-md sm:items-center sm:p-4">
-    <motion.div initial={{y:80,opacity:0}} animate={{y:0,opacity:1}} className="mx-auto w-full max-w-md overflow-hidden rounded-t-[2rem] bg-white shadow-2xl sm:rounded-[2rem]">
-      <div className="flex items-start justify-between bg-gradient-to-br from-navy-900 to-blue-900 p-6 text-white"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-blue-200">Checkout aman</p><h2 className="mt-1 text-2xl font-bold">Pilih pembayaran</h2></div><button onClick={props.onClose} className="rounded-full bg-white/10 p-2"><X className="h-5 w-5"/></button></div>
+    <motion.div initial={{y:80,opacity:0}} animate={{y:0,opacity:1}} ref={sheetRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Pilih pembayaran" className="payment-sheet mx-auto w-full max-w-md overflow-hidden rounded-t-[2rem] bg-white shadow-2xl sm:rounded-[2rem]">
+      <div className="flex items-start justify-between bg-gradient-to-br from-navy-900 to-blue-900 p-6 text-white"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-blue-200">Checkout aman</p><h2 className="mt-1 text-2xl font-bold">Pilih pembayaran</h2></div><button aria-label="Tutup pembayaran" onClick={props.onClose} className="rounded-full bg-white/10 p-2"><X className="h-5 w-5"/></button></div>
       <div className="space-y-5 p-5"><div className="rounded-2xl bg-blue-50 p-4"><p className="text-xs text-blue-600">Estimasi total</p><p className="text-3xl font-extrabold text-navy-950">Rp {total.toLocaleString("id-ID")}</p><p className="mt-1 text-xs text-navy-400">Total final termasuk pajak dan service charge dihitung server.</p></div>
         <div><p className="mb-2 flex items-center gap-2 text-sm font-bold text-navy-900"><BadgePercent className="h-4 w-4 text-blue-600"/>Promo</p><div className="mb-2 flex gap-2"><input value={promoCode} onChange={e=>setPromoCode(e.target.value.toUpperCase())} placeholder="Masukkan kode promo" className="min-w-0 flex-1 rounded-xl border-2 border-blue-100 px-3 py-2 text-sm font-bold uppercase text-navy-900 outline-none focus:border-blue-500"/><button type="button" onClick={redeemCode} className="rounded-xl bg-navy-950 px-4 text-xs font-bold text-white">Tukar</button></div>{claims.length>0&&<select value={promoClaimId} onChange={e=>{setPromoClaimId(e.target.value);if(e.target.value)setLoyaltyCode("")}} className="w-full rounded-2xl border-2 border-blue-100 bg-white p-3 text-sm font-semibold text-navy-900 outline-none focus:border-blue-500"><option value="">Tanpa promo</option>{claims.map(claim=><option key={claim.id} value={claim.id}>{claim.promo.code} — {claim.promo.name} ({claim.promo.discount_type==='percent'?`${claim.promo.discount_value}%`:`Rp ${Number(claim.promo.discount_value).toLocaleString('id-ID')}`})</option>)}</select>}<p className="mt-1 text-[11px] text-slate-400">Claim membutuhkan login. Diskon final diverifikasi otomatis oleh server.</p></div>
         {token&&<div><p className="mb-2 text-sm font-bold text-navy-900">Reward poin</p><input value={loyaltyCode} onChange={e=>{setLoyaltyCode(e.target.value.toUpperCase());if(e.target.value)setPromoClaimId("")}} list="loyalty-voucher-codes" placeholder="Masukkan kode reward" className="w-full rounded-xl border-2 border-blue-100 px-3 py-2 text-sm font-bold uppercase text-navy-900 outline-none focus:border-blue-500"/><datalist id="loyalty-voucher-codes">{loyaltyRedemptions.map(item=><option key={item.id} value={item.code}>{item.reward?.name}</option>)}</datalist><p className="mt-1 text-[11px] text-slate-400">Reward poin tidak dapat digabung dengan kode promo.</p></div>}

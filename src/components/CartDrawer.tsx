@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ShoppingCart, Trash2 } from "lucide-react";
+import { useSheet } from "@/hooks/useSheet";
 import toast from "react-hot-toast";
 import type { CartItem } from "@/types";
 
@@ -22,6 +23,7 @@ export default function CartDrawer({
   onRemoveItem,
   onUpdateQuantity,
 }: CartDrawerProps) {
+  const sheetRef = useSheet(isOpen, onClose);
   const total = items.reduce((sum, item) => sum + (item.price + (item.selected_options ?? []).reduce((n, option) => n + option.price_delta, 0)) * item.quantity, 0);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -49,7 +51,8 @@ export default function CartDrawer({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "tween", duration: 0.28 }}
-            className="mx-auto flex max-h-[92vh] w-full max-w-md flex-col rounded-t-[2rem] bg-white shadow-2xl dark:bg-[#081426] sm:rounded-[2rem]"
+            ref={sheetRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Keranjang"
+            className="cart-sheet mx-auto flex max-h-[92dvh] w-full max-w-md flex-col rounded-t-[2rem] bg-white shadow-2xl dark:bg-[#081426] sm:rounded-[2rem]"
           >
             {/* Header */}
             <div className="px-5 py-4 border-b border-navy-100 flex items-center justify-between flex-shrink-0">
@@ -87,7 +90,7 @@ export default function CartDrawer({
                     initial={{ opacity: 0, x: -12 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 12 }}
-                    className="flex gap-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-3 dark:border-white/10 dark:bg-white/5"
+                    className="cart-line flex gap-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-3 dark:border-white/10 dark:bg-white/5"
                   >
                     <div className="w-14 h-14 bg-navy-100 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden">
                       {item.image ? (
@@ -115,7 +118,7 @@ export default function CartDrawer({
                       </p>
                     </div>
 
-                    <div className="flex flex-col items-end gap-2">
+                    <div className="cart-controls flex flex-col items-end gap-2">
                       {onRemoveItem && (
                         <button
                           onClick={() => onRemoveItem(`${item.id}:${[...(item.option_ids ?? [])].sort().join(",")}`)}
@@ -128,8 +131,9 @@ export default function CartDrawer({
                       {onUpdateQuantity && (
                         <div className="flex items-center gap-1 mt-auto">
                           <button
+                            aria-label={`Ubah jumlah ${item.name}`}
                             onClick={() => onUpdateQuantity(`${item.id}:${[...(item.option_ids ?? [])].sort().join(",")}`, -1)}
-                            className="w-6 h-6 bg-navy-100 text-navy-700 rounded-lg flex items-center justify-center text-sm font-bold hover:bg-navy-200 transition-colors"
+                            className="w-11 h-11 bg-navy-100 text-navy-700 rounded-lg flex items-center justify-center text-sm font-bold hover:bg-navy-200 transition-colors"
                           >
                             −
                           </button>
@@ -137,8 +141,9 @@ export default function CartDrawer({
                             {item.quantity}
                           </span>
                           <button
+                            aria-label={`Ubah jumlah ${item.name}`}
                             onClick={() => onUpdateQuantity(`${item.id}:${[...(item.option_ids ?? [])].sort().join(",")}`, 1)}
-                            className="w-7 h-7 bg-blue-600 text-white rounded-lg flex items-center justify-center text-sm font-bold hover:bg-blue-700 transition-colors"
+                            className="w-11 h-11 bg-blue-600 text-white rounded-lg flex items-center justify-center text-sm font-bold hover:bg-blue-700 transition-colors"
                           >
                             +
                           </button>
