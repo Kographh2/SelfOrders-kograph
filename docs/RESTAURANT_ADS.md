@@ -18,7 +18,7 @@
 
 ## Menu design
 
-The restaurant presentation uses warm paper/terracotta/charcoal tones, a display-serif headline, real catalog photography, a featured dish, horizontal restaurant selections, category navigation, and explicit add-to-cart buttons. Missing photography uses an illustrated CSS plate or utensil icon. No fabricated ratings, discounts, or preparation times are shown. Pickup time is selected in the dedicated cart page.
+The consumer UI uses navy and white with the inverse palette in dark mode, consistent Inter/system sans-serif text, a compact store header, real catalog photography, restaurant selections, category navigation, and explicit add-to-cart buttons. Missing product photography uses a utensil icon. Large editorial headlines, decorative plate artwork, and generic promotional copy have been removed. No fabricated ratings, discounts, or preparation times are shown. Pickup time is selected in the dedicated cart page.
 
 ## Access and verification
 

@@ -31,6 +31,9 @@ for (const width of [320, 390, 768, 1440]) {
     await expect(page.getByRole("heading", { name: "Ruang Rasa" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: `artifacts/ui/restaurant-menu-${width}.png`, fullPage: true });
+    await expect(page.locator(".restaurant-masthead")).toHaveCSS("background-color", "rgb(20, 43, 69)");
+    expect(await page.locator(".restaurant-greeting h2").evaluate(node => getComputedStyle(node).fontFamily)).not.toMatch(/Georgia|Times/);
+    expect((await page.locator(".restaurant-header").boundingBox())!.height).toBeLessThan(520);
     const dock = page.getByRole("navigation", { name: "Navigasi utama" });
     await page.getByRole("button", { name: "Tambah Kopi Susu Gula Aren", exact: true }).click();
     await dock.getByRole("link", { name: "Cari", exact: true }).click();
@@ -78,6 +81,8 @@ test("preferences persist, and payment fits a short screen", async ({ page }) =>
   await expect(page.locator("html")).toHaveAttribute("data-glass", "solid");
   await page.screenshot({ path: "artifacts/ui/settings-dark.png", fullPage: true });
   await page.goto("/menu?store=ui-store&table=1");
+  await expect(page.locator(".restaurant-menu")).toHaveCSS("background-color", "rgb(8, 19, 33)");
+  await page.screenshot({ path: "artifacts/ui/menu-navy-dark.png", fullPage: true });
   await page.getByRole("button", { name: "Tambah Kopi Susu Gula Aren", exact: true }).click();
   await page.getByRole("link", { name: "Keranjang, 1 item" }).click();
   await page.getByRole("button", { name: "Lanjut ke pembayaran", exact: true }).click();
@@ -96,6 +101,18 @@ test("glass navigation supports drag, cancellation and keyboard links", async ({
   await page.goto("/profile");
   const menu = page.getByRole("navigation").getByRole("link", { name: "Menu", exact: true });
   const search = page.getByRole("navigation").getByRole("link", { name: "Cari", exact: true });
+  const lens = page.locator(".glass-lens");
+  const profileTab = page.getByRole("navigation").getByRole("link", { name: "Profil", exact: true });
+  const profileBounds = (await profileTab.boundingBox())!;
+  await expect(lens).toHaveCSS("opacity", "0");
+  await page.mouse.move(profileBounds.x + profileBounds.width / 2, profileBounds.y + profileBounds.height / 2);
+  await page.mouse.down();
+  await expect(page.locator(".glass-tabbar")).toHaveClass(/is-pressed/);
+  await expect(lens).toHaveCSS("opacity", "1");
+  await page.screenshot({ path: "artifacts/ui/nav-pressed.png" });
+  await page.mouse.up();
+  await expect(lens).toHaveCSS("opacity", "0");
+  await expect(page).toHaveURL(/\/profile$/);
   const a = (await menu.boundingBox())!, b = (await search.boundingBox())!;
   await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
   await page.mouse.down();
@@ -111,6 +128,7 @@ test("glass navigation supports drag, cancellation and keyboard links", async ({
   await page.locator(".glass-tabbar").dispatchEvent("pointerdown", { pointerId: 5, button: 0, clientX: a.x });
   await page.locator(".glass-tabbar").dispatchEvent("pointercancel", { pointerId: 5 });
   await expect(page.locator(".glass-tabbar")).not.toHaveClass(/is-dragging/);
+  await expect(lens).toHaveCSS("opacity", "0");
 });
 
 test("switching stores clears cart and old table context", async ({ page }) => {

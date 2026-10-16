@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowUpRight, ChevronLeft, ChevronRight, Pause, Play, Sparkles, X } from "lucide-react";
+import { ArrowUpRight, ChevronLeft, ChevronRight, Pause, Play, Megaphone, X } from "lucide-react";
 import { useSheet } from "@/hooks/useSheet";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { dismissedAdKey, safeAdUrl, type RestaurantAd } from "@/lib/restaurant-ads";
@@ -80,12 +80,12 @@ export default function AdsPopup({ storeId, blocked, onDone }: { storeId: string
   const optedOut = hidden.has(dismissedAdKey(ad));
   return <div className="ads-backdrop" onClick={event => { if (event.target === event.currentTarget) close(); }}>
     <section ref={sheet} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Penawaran restoran" className="ads-popup">
-      <div className="ads-topline"><span><Sparkles size={15}/> PILIHAN & PENAWARAN</span><button aria-label="Tutup iklan" onClick={close}><X size={21}/></button></div>
+      <div className="ads-topline"><span><Megaphone size={15}/> Info & penawaran</span><button aria-label="Tutup iklan" onClick={close}><X size={21}/></button></div>
       <div className="ads-stage">
         <AnimatePresence mode="wait" initial={false}>
           <motion.article key={ad.id} data-ad-id={ad.id} initial={{ opacity: reduced ? 1 : 0, x: reduced ? 0 : 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: reduced ? 1 : 0, x: reduced ? 0 : -16 }} transition={{ duration: reduced ? 0 : .25 }}>
-            {ad.image_url ? <div className="ads-image"><img src={ad.image_url} alt="" onError={event => { event.currentTarget.style.display = "none"; }}/></div> : <div className="ads-art"><Sparkles size={48}/><span>Something special<br/>for your table.</span></div>}
-            <div className="ads-copy"><p className="restaurant-eyebrow">KHUSUS UNTUK ANDA</p><h2>{ad.title}</h2>{ad.description && <p>{ad.description}</p>}{ad.link_url && <Link className="restaurant-button" href={ad.link_url} onClick={close}>{ad.link_label}<ArrowUpRight size={17}/></Link>}</div>
+            {ad.image_url ? <div className="ads-image"><img src={ad.image_url} alt="" onError={event => { event.currentTarget.style.display = "none"; }}/></div> : null}
+            <div className="ads-copy"><h2>{ad.title}</h2>{ad.description && <p>{ad.description}</p>}{ad.link_url && <Link className="restaurant-button" href={ad.link_url} onClick={close}>{ad.link_label}<ArrowUpRight size={17}/></Link>}</div>
           </motion.article>
         </AnimatePresence>
       </div>
