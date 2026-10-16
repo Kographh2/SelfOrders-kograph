@@ -10,7 +10,6 @@ export default function PushNotificationProvider({
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!("serviceWorker" in navigator)) return;
-    if (!("PushManager" in window)) return;
 
     const registerSW = async () => {
       try {
@@ -19,7 +18,7 @@ export default function PushNotificationProvider({
         );
         console.log("Service Worker registered:", registration.scope);
 
-        const subscription = await registration.pushManager.getSubscription();
+        const subscription = "PushManager" in window ? await registration.pushManager.getSubscription() : null;
         if (!subscription) {
           console.log("Push subscription not yet enabled (user has not granted notification permission)");
         } else {

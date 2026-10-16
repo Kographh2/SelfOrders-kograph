@@ -1,3 +1,5 @@
+importScripts('/offline-worker.js');
+
 self.addEventListener('push', (event) => {
   if (!event.data) return;
   try {

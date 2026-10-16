@@ -7,6 +7,7 @@ import FloatingNav from "@/components/FloatingNav";
 import MotionProvider from "@/components/MotionProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import PushNotificationProvider from "@/components/PushNotificationProvider";
+import ConnectivityGuard from "@/components/ConnectivityGuard";
 
 export const metadata: Metadata = {
   title: { default: "SelfOrder", template: "%s | SelfOrder" },
@@ -37,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="antialiased">
         <PreferencesProvider><MotionProvider><AuthProvider><OrderProvider>
-          <PushNotificationProvider>{children}<FloatingNav /></PushNotificationProvider>
+          <PushNotificationProvider><ConnectivityGuard>{children}<FloatingNav /></ConnectivityGuard></PushNotificationProvider>
         </OrderProvider></AuthProvider></MotionProvider></PreferencesProvider>
       </body>
     </html>

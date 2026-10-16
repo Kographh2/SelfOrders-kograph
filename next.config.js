@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  webpack(config) {
+    config.module.rules.push({ test: /offline\.html$/, type: "asset/source" });
+    return config;
+  },
   // Keep production-browser verification isolated from an active `next dev`.
   distDir: process.env.SELFORDER_BUILD_DIR || ".next",
   images: {
