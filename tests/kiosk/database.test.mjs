@@ -20,6 +20,7 @@ before(async () => {
     catch (error) { throw new Error(`${file}: ${error.message}`); }
   }
   store = randomUUID(); otherStore = randomUUID(); category = randomUUID(); table = randomUUID(); menu = randomUUID(); policy = randomUUID();
+  await db.exec(await readFile("MIGRATION_KIOSK_HANDOFF.sql", "utf8"));
   await db.query("INSERT INTO stores(id,name,address,phone,email,tax_rate) VALUES($1,'Test branch','Test','0','fixture@example.test',0.11),($2,'Other branch','Test','0','other@example.test',0.11)", [store, otherStore]);
   await db.query("INSERT INTO categories(id,store_id,name) VALUES($1,$2,'Coffee')", [category, store]);
   await db.query("INSERT INTO tables(id,store_id,number) VALUES($1,$2,1)", [table, store]);
@@ -39,6 +40,19 @@ async function settle(id, status, amount = 22200) { return db.query("SELECT sett
 test("real migrations apply and kiosk migration is repeatable", async () => {
   await db.exec(await readFile("MIGRATION_SELFORDER_KIOSK.sql", "utf8"));
   await db.exec(await readFile("MIGRATION_SELFORDER_KIOSK_SETTINGS.sql", "utf8"));
+  await db.exec(await readFile("MIGRATION_KIOSK_HANDOFF.sql", "utf8"));
+});
+
+test("handoff acknowledgement is durable and independent of settlement", async () => {
+  const id = await create(makeInput());
+  await settle(id, "paid");
+  await db.query("UPDATE orders SET kiosk_tracking_ack_at=now() WHERE id=$1 AND payment_status='paid' AND kiosk_tracking_ack_at IS NULL", [id]);
+  const first = await order(id);
+  await db.query("UPDATE orders SET kiosk_tracking_ack_at=now() WHERE id=$1 AND kiosk_tracking_ack_at IS NULL", [id]);
+  const again = await order(id);
+  assert.ok(first.kiosk_tracking_ack_at);
+  assert.deepEqual(again.kiosk_tracking_ack_at, first.kiosk_tracking_ack_at);
+  assert.equal(again.payment_status, "paid");
 });
 
 test("owner settings switch the sole default atomically and validate active stores", async () => {

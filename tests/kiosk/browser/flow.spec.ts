@@ -1,9 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
+import { BinaryBitmap, HybridBinarizer, QRCodeReader, RGBLuminanceSource } from "@zxing/library";
+import jwt from "jsonwebtoken";
 
 const storeId = "11111111-1111-4111-8111-111111111111";
 const itemId = "22222222-2222-4222-8222-222222222222";
 const tableId = "33333333-3333-4333-8333-333333333333";
 const policyId = "44444444-4444-4444-8444-444444444444";
+const trackingFixture = jwt.sign({ orderId: "77777777-7777-4777-8777-777777777777", storeId }, "isolated-browser-test-secret-not-a-real-credential", { audience: "selforder-kiosk-tracking", issuer: "selforder", expiresIn: "24h" });
 const catalog = {
   station: { id: "fixture", name: "Fixture station" },
   store: { id: storeId, name: "Kographh · Test Kitchen", tax_rate: .11, service_charge_rate: 0 },
@@ -20,11 +23,14 @@ async function fixture(page: Page, options: { lostResponse?: boolean; empty?: bo
   let order: FixtureOrder | null = null;
   let tokenRequests = 0;
   let dropped = false;
+  let scannedAt: string | null = null;
+  let allowAck = false;
   await page.route("**/api/kiosk/**", async route => {
     const path = new URL(route.request().url()).pathname;
     const method = route.request().method();
     if (path.endsWith("/catalog")) return route.fulfill({ status: options.fail ? 503 : 200, json: options.fail ? { error: "KIOSK belum terhubung ke cabang. Hubungi petugas." } : { data: { ...catalog, items: options.empty ? [] : catalog.items, operating: { is_open: !options.closed } } } });
     if (path.endsWith("/session")) return route.fulfill({ json: { data: { stationId: "fixture" } } });
+    if (path.endsWith("/handoff")) return route.fulfill({ json: { data: { url: `http://localhost:3127/orders/${order?.id}/waiting#kiosk=${trackingFixture}`, scannedAt } } });
     if (path.endsWith("/order") && method === "POST") {
       const body = route.request().postDataJSON(); requests.push(body);
       if (!order) order = { id: "77777777-7777-4777-8777-777777777777", order_number: 42, total_amount: body.expectedTotal, subtotal: 25000, tax_amount: 2750, service_charge: 0, status: "pending", payment_status: "pending" };
@@ -44,7 +50,17 @@ async function fixture(page: Page, options: { lostResponse?: boolean; empty?: bo
   await page.addInitScript(() => {
     window.snap = { pay: (_token, callbacks) => { setTimeout(() => callbacks.onSuccess?.({ transaction_status: "settlement" }), 100); }, hide: () => {}, embed: () => {} };
   });
-  return { requests, tokens: () => tokenRequests };
+  return { requests, tokens: () => tokenRequests, allowAck: () => { allowAck = true; }, connectPhone: async (phone: Page) => {
+    await phone.route(/^https:\/\//, route => route.abort());
+    await phone.route("**/api/kiosk-tracking/**", route => {
+      if (route.request().method() === "POST") {
+        if (!allowAck) return route.fulfill({ status: 503, json: { error: "Temporary acknowledgement failure" } });
+        scannedAt ||= new Date().toISOString();
+        return route.fulfill({ json: { data: { acknowledged: true } } });
+      }
+      return route.fulfill({ json: { data: { ...order, store_id: storeId, store: { name: catalog.store.name }, order_items: [] } } });
+    });
+  } };
 }
 async function chooseCoffee(page: Page) {
   await page.getByRole("button", { name: /Kopi Susu Aren,/ }).click();
@@ -59,7 +75,7 @@ async function checkout(page: Page, portrait = false) {
   await page.getByRole("checkbox", { name: /Saya telah membaca/ }).check();
 }
 
-test("landscape: dine-in, options, cart, payment, confirmation and privacy reset", async ({ page }) => {
+test("landscape: payment, QR handoff to another device, confirmed scan and ten-second reset", async ({ page, browser }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   const mock = await fixture(page);
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
@@ -81,13 +97,36 @@ test("landscape: dine-in, options, cart, payment, confirmation and privacy reset
   expect(mock.requests).toHaveLength(1);
   expect(mock.requests[0]).toMatchObject({ tableId, expectedTotal: 27750, mode: "dine_in", items: [{ menu_item_id: itemId, quantity: 1, option_ids: ["large"], notes: "Sedikit es" }], policyIds: [policyId] });
   await page.getByRole("button", { name: "Buka pembayaran" }).click();
-  await expect(page.getByRole("heading", { name: "Kami siapkan dengan hati." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pembayaran berhasil" })).toBeVisible();
   expect(mock.tokens()).toBe(1);
   await expect(page.getByText("042", { exact: true })).toBeVisible();
   await page.screenshot({ path: "test-results/kiosk-confirmation.png", fullPage: true });
-  await page.getByRole("button", { name: /Selesai · Pelanggan berikutnya/ }).click();
-  await expect(page.getByRole("button", { name: /Bawa pulang/ })).toBeVisible();
+  const image = page.getByRole("img", { name: "QR untuk membuka waiting page pesanan Anda" });
+  await expect(image).toBeVisible();
+  const pixels = await image.evaluate((element: HTMLImageElement) => {
+    const canvas = document.createElement("canvas"); canvas.width = element.naturalWidth; canvas.height = element.naturalHeight;
+    const ctx = canvas.getContext("2d")!; ctx.drawImage(element, 0, 0);
+    return { width: canvas.width, height: canvas.height, rgba: Array.from(ctx.getImageData(0, 0, canvas.width, canvas.height).data) };
+  });
+  const luminance = Uint8ClampedArray.from({ length: pixels.width * pixels.height }, (_, i) => Math.round((pixels.rgba[i * 4] + pixels.rgba[i * 4 + 1] * 2 + pixels.rgba[i * 4 + 2]) / 4));
+  const link = new QRCodeReader().decode(new BinaryBitmap(new HybridBinarizer(new RGBLuminanceSource(luminance, pixels.width, pixels.height)))).getText();
+  expect(link).toContain("/waiting#kiosk=");
+  await expect(page.getByRole("heading", { name: "Berhasil dipindai" })).toHaveCount(0);
+  const phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
+  const phone = await phoneContext.newPage(); await mock.connectPhone(phone);
+  await phone.goto(link);
+  await expect(phone.getByText("042", { exact: true })).toBeVisible();
+  await expect(phone.getByText("Menghubungkan ke kiosk…", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Berhasil dipindai" })).toHaveCount(0);
+  mock.allowAck();
+  await expect(phone.getByText("Berhasil terhubung ke pesanan Anda", { exact: true })).toBeVisible({ timeout: 12000 });
+  await expect(page.getByRole("heading", { name: "Berhasil dipindai" })).toBeVisible({ timeout: 10000 });
+  await expect(page.getByText(/Layar ini akan tertutup dalam \d+ detik/)).toBeVisible();
+  await page.screenshot({ path: "test-results/kiosk-scanned.png", fullPage: true });
+  await expect(page.getByRole("button", { name: /Bawa pulang/ })).toBeVisible({ timeout: 15000 });
   expect(await page.evaluate(() => sessionStorage.getItem("selforder_kiosk_checkout"))).toBeNull();
+  await phone.reload(); await expect(phone.getByText("042", { exact: true })).toBeVisible();
+  await phoneContext.close();
   expect(errors).toEqual([]);
 });
 test("portrait: takeaway, search, lost response retry retains same order key", async ({ page }) => {
@@ -137,6 +176,38 @@ test("empty, closed and unconfigured states are usable", async ({ page }) => {
   await page.unrouteAll(); await fixture(page, { fail: true }); await page.goto("/kiosk");
   await expect(page.getByRole("button", { name: "Muat kembali" })).toBeVisible();
 });
+
+test("Luujaaa keyboard edits notes with selection, symbols, deletion and a length limit on touch screens", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await fixture(page); await page.goto("/kiosk");
+  await page.getByRole("button", { name: /Bawa pulang/ }).click();
+  await page.getByRole("button", { name: /Kopi Susu Aren,/ }).click();
+  const note = page.getByPlaceholder("Contoh: tanpa es");
+  await note.click();
+  await expect(note).toHaveAttribute("inputmode", "none");
+  await expect(page.getByRole("group", { name: "Keyboard Luujaaa" })).toBeVisible();
+  await page.getByRole("button", { name: "Tanpa es", exact: true }).click();
+  await expect(note).toHaveValue("Tanpa es");
+  await note.evaluate((input: HTMLTextAreaElement) => { input.focus(); input.setSelectionRange(6, 8); input.dispatchEvent(new Event("select", { bubbles: true })); });
+  await page.getByRole("button", { name: "Ketik a", exact: true }).click();
+  await expect(note).toHaveValue("Tanpa a");
+  await page.getByRole("button", { name: "Hapus karakter", exact: true }).click();
+  await page.getByRole("button", { name: "Keyboard angka dan simbol", exact: true }).click();
+  await page.getByRole("button", { name: "Ketik 2", exact: true }).click();
+  await expect(note).toHaveValue("Tanpa 2");
+  await page.screenshot({ path: "test-results/kiosk-keyboard-mobile.png", fullPage: true });
+  expect(await page.getByRole("dialog").evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await note.fill("a".repeat(200));
+  await note.press("End");
+  await page.getByRole("button", { name: "Ketik 2", exact: true }).click();
+  await expect(note).toHaveValue("a".repeat(200));
+  await page.getByRole("button", { name: "Selesai", exact: true }).click();
+  await expect(page.getByRole("group", { name: "Keyboard Luujaaa" })).toHaveCount(0);
+  await page.getByRole("radio", { name: /Large/ }).check();
+  await page.getByRole("button", { name: /Tambah ke pesanan/ }).click();
+  await page.getByRole("button", { name: /Kopi Susu Aren,/ }).click();
+  await expect(note).toHaveValue("");
+});
 test("Snap success callback alone cannot confirm a pending server payment", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await fixture(page); await page.goto("/kiosk");
@@ -147,7 +218,8 @@ test("Snap success callback alone cannot confirm a pending server payment", asyn
   await page.getByRole("button", { name: "Buka pembayaran" }).click();
   await expect(page.getByRole("button", { name: "Periksa status" })).toBeEnabled();
   await expect(page.getByRole("heading", { name: "Selesaikan pembayaran Anda." })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Kami siapkan dengan hati." })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Pembayaran berhasil" })).toHaveCount(0);
+  await expect(page.getByRole("img", { name: "QR untuk membuka waiting page pesanan Anda" })).toHaveCount(0);
   await page.screenshot({ path: "test-results/kiosk-payment-pending.png", fullPage: true });
 });
 test("a late paid polling response cannot restore a previous customer's screen", async ({ page }) => {

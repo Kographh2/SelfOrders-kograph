@@ -1,6 +1,36 @@
-# KIOSK validation — 2026-10-10
+# KIOSK validation
 
-## Owner settings update (latest)
+## UI, virtual keyboard and QR handoff — 2026-10-19
+
+The existing kiosk order/payment implementation was inspected before these changes.
+Navy/white UI, the Luujaaa note keyboard, paid-order tracking QR and acknowledgement
+now share the existing branch, order and waiting-page flows.
+
+- TypeScript and isolated production build (`build:kiosk:test`): PASS.
+- Unit/API/PGlite database tests: **40/40 PASS**, including migration repeatability,
+  durable acknowledgement, token tampering/expiry/order binding, separate JWT
+  audiences, origin validation, paid-order gating and limited response fields.
+- Chrome browser/HTTP tests: **12/12 PASS**. The generated QR is actually decoded
+  at signed-token size, opened in a separate browser context, and its waiting page
+  acknowledges only after loading. A failed acknowledgement does not reset the
+  kiosk; retry succeeds, the kiosk returns to welcome after ten seconds, and the
+  phone still reloads the order. Keyboard tests cover selection replacement,
+  number/symbol entry, deletion, 200-character limit and clearing between items.
+- Existing responsive, retry/idempotency, late-response isolation, pending payment,
+  idle timeout and owner settings cases also pass. Layouts include 390, 768 and
+  1440px. Screenshots reviewed: `test-results/kiosk-welcome-landscape.png`,
+  `kiosk-menu-landscape.png`, `kiosk-confirmation.png`, `kiosk-scanned.png`, and
+  `kiosk-keyboard-mobile.png` in the same directory.
+- CSS parsing and `git diff --check`: PASS. Existing image/font/hook lint warnings
+  remain. CSS was reformatted after the build without changing declarations.
+
+Tests use isolated credentials, API fixtures and temporary PGlite, never live
+payments. Physical kiosk hardware, mobile camera scanning, Safari/iPhone,
+Supabase production migration, live Midtrans and deployment are not verified.
+Apply **`MIGRATION_KIOSK_HANDOFF.sql`** after existing kiosk migrations before
+deployment; it adds the acknowledgement timestamp used by both endpoints.
+
+## Owner settings update — 2026-10-10 (historical)
 
 The branch mapping now lives in the database and is managed from Dashboard >
 Pengaturan > KIOSK. A current owner can enable/disable branches, choose the single

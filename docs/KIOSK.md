@@ -5,13 +5,52 @@ KIOSK runs inside this Next.js application at `/kiosk`. The exact host
 and the main domain retain their existing behavior. There is no second project,
 repository, database, or deployment.
 
+## Touchscreen UI and phone handoff (2026-10-19)
+
+The kiosk now uses navy/white surfaces, one sans-serif family, direct ordering
+instructions, and catalog photography only when it exists. Decorative seals and
+marketing slogans are removed. Notes open the built-in Luujaaa keyboard inside
+the product dialog: letters, shift, numbers/symbols, space, backspace, selected-text
+replacement, quick notes and a 200-character limit. Hardware keyboard input still
+works. `inputMode="none"` requests suppression of the operating-system keyboard.
+
+After server-verified payment, the kiosk shows the queue number and a scannable
+QR for `/orders/{id}/waiting`. Opening that page in a visible customer browser
+loads the paid order and then sends an acknowledgement. A camera merely seeing
+the QR, a link preview, or a GET request alone does not count as a completed scan.
+The kiosk polls the acknowledgement, shows **Berhasil dipindai**, counts down
+**10 seconds**, clears local customer state, and returns to welcome. The phone
+continues tracking after the kiosk session ends. A disconnected session-delete
+request cannot leave the previous customer's details on screen.
+
+The primary completion path is the QR handoff. Customers without a phone can use
+the staff-help action and explicitly end the session after saving their queue
+number. Before a scan, confirmation has a three-minute idle limit with a warning
+and extend action; ordinary ordering/payment idle limits remain unchanged.
+
+Tracking credentials expire 24 hours after order creation, bind the order and
+branch, and use a separate JWT audience from kiosk sessions. The token is placed
+in the URL fragment, then retained in the phone tab's session storage; reloads in
+that tab remain supported. If storage is blocked the fragment remains available.
+The tracking API returns status and a receipt projection, never a payment token,
+account identity or kiosk session credential. The only permitted write is the
+idempotent scan acknowledgement. Kiosk tracking uses local call muting and staff
+help; account-only refund and review actions are not shown for that capability.
+
+**Apply `MIGRATION_KIOSK_HANDOFF.sql` after the existing kiosk migrations before
+deploying this update.** It adds the nullable `orders.kiosk_tracking_ack_at`
+timestamp. It can be rerun and does not change order totals or payment state.
+The QR uses the current deployment origin, so the kiosk hostname must also be
+reachable from customer phones. No new secret is needed.
+
 ## Setup order
 
 1. Apply existing schema and migrations through `MIGRATION_SELFORDER_OPERATIONS.sql`
    if not already applied. Apply **`MIGRATION_SELFORDER_KIOSK.sql` before deploying
    this application version**. The shared payment routes now read KIOSK columns.
    Run migrations using Supabase SQL Editor with an authorized database role.
-2. Apply **MIGRATION_SELFORDER_KIOSK_SETTINGS.sql**, then deploy this version.
+2. Apply **MIGRATION_SELFORDER_KIOSK_SETTINGS.sql**, then
+   **MIGRATION_KIOSK_HANDOFF.sql**, and deploy this version.
    In the existing Vercel environment keep private `KIOSK_SESSION_SECRET` and
    `CRON_SECRET`, plus `KIOSK_HOSTNAME=kiosk.luujaaa.my.id`.
    Log in as **owner**, open **Dashboard > Pengaturan > KIOSK**, select a real
@@ -123,9 +162,11 @@ References verified during implementation:
 
 ## Timeout and reconciliation
 
-Menu/cart/checkout idle timeout is two minutes; payment is ten minutes; confirmation
-is one minute. A 30-second warning allows continuation. Reset closes Snap and clears
-the checkout payload, cart and cookie. It does **not** cancel an issued provider
+Menu/cart/checkout idle timeout is two minutes; payment is ten minutes; unscanned
+confirmation is three minutes. A 30-second warning allows continuation. A confirmed
+phone handoff instead resets after ten seconds regardless of further activity.
+Reset immediately clears the local screen and checkout/cart payload, closes Snap,
+and requests deletion of the kiosk cookie. It does **not** cancel an issued provider
 transaction. The UI asks the customer to retain the queue number and contact staff.
 
 Schedule authenticated GET requests to `/api/kiosk/maintenance` every five minutes
