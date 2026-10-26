@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "generate:luu": "node scripts/extract-luu.mjs && node scripts/extract-logo.mjs && node scripts/build-offline.mjs",
+    "generate:luu": "node scripts/extract-luu.mjs && node scripts/extract-logo.mjs && node scripts/build-app-icons.mjs && node scripts/build-offline.mjs",
     "prebuild": "npm run generate:luu",
     "dev": "next dev",
     "build": "next build",

@@ -1,16 +1,43 @@
 {
-  "name": "SelfOrder",
-  "short_name": "SelfOrder",
-  "description": "Sistem self-order restaurant modern",
+  "name": "Luujaaa.id",
+  "short_name": "Luujaaa.id",
+  "description": "Lihat menu, pesan, dan ikuti status pesanan Anda melalui Luujaaa.id.",
   "start_url": "/menu",
   "display": "standalone",
-  "background_color": "#020817",
-  "theme_color": "#0F1E2B",
+  "background_color": "#f7f8fa",
+  "theme_color": "#142b45",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "shortcuts": [
-    { "name": "Lihat Menu", "url": "/menu", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
-  ]
+    {
+      "name": "Lihat Menu",
+      "url": "/menu",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "id": "/menu",
+  "lang": "id"
 }

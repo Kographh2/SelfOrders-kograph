@@ -7,7 +7,6 @@ Source: `mascot/LUUJAAA-Mascot-Studio-V2.html`. The character remains an inline 
 | Place | Pose | Reason |
 | --- | --- | --- |
 | Offline / service recovery | Drained | Explains interruption with tired eyes, grayscale character and small motion; application colors stay navy/white. |
-| Catalog loading lasting over 700 ms | Thinking | Explains an actual wait while avoiding flashes during fast requests. |
 | Customer / kiosk search with a nonempty query and no matches | Confused | Gives context for a search that needs changing. |
 | Closed customer store / kiosk branch | Sleeping | Explains that ordering is paused, with the original sleeping rig and next opening information when supplied by the API. |
 | Kiosk payment confirmation | Celebrating | Appears only when the existing server-verified flow confirms payment; pending payment has no success mascot. |
@@ -36,7 +35,7 @@ No mascot is added to navigation, ordinary cards, tables, buttons, profile, or e
 - Tests: `tests/offline/connection.test.mjs`, `luu.test.mjs`, `worker.test.mjs`; `tests/ui/luu.spec.ts`, `offline.spec.ts`; `tests/kiosk/browser/flow.spec.ts`.
 - Documentation: this file and `docs/OFFLINE_RECOVERY.md`.
 
-Validation screenshots are generated under `artifacts/ui/`: `luu-reference.png`, `luu-drained.png`, `luu-thinking.png`, `offline-mobile.png`, `logo-loading.png`, and `luu-sleeping.png`. The reference and extracted Drained geometry are compared directly by browser tests, including body, arms, legs, and eyes.
+Earlier validation screenshots are generated under `artifacts/ui/`: `luu-reference.png`, `luu-drained.png`, `luu-thinking.png`, `offline-mobile.png`, `logo-loading.png`, and `luu-sleeping.png`. The reference and extracted Drained geometry are compared directly by browser tests, including body, arms, legs, and eyes.
 
 ## Animated brand logo and real loading
 
@@ -46,7 +45,7 @@ The supplied `mascot/logo/LUUJAAA-Animated-Logo (1).html` uses an embedded PNG w
 
 `SiteBrandHeader.tsx` supplies an upper-left logo on customer, account, and other standard routes. Kiosk uses its own header; desktop dashboard uses its sidebar and mobile dashboard uses the shared header. The offline document embeds the same compressed image and rig, so its logo needs no extra request. The layout reserves space rather than overlaying controls.
 
-Menu loading states track actual requests: **Memuat informasi toko** while fetching stores, then **Memuat menu dan ketersediaan** while fetching the selected store, categories, and items. No invented percentage or mandatory splash delay is added. Menu route Suspense and kiosk initial loading also use the logo. Errors still lead to the existing access or recovery UI.
+Loading now shows only the animated wordmark, without the cow. Thinking remains available in the reusable rig for later use. Screen-reader status messages track actual requests: **Memuat informasi toko** while fetching stores, then **Memuat menu dan ketersediaan** while fetching the selected store, categories, and items. No invented percentage or mandatory splash delay is added. Menu route Suspense and kiosk initial loading also use the logo. Errors still lead to the existing access or recovery UI.
 
 Additional files: `scripts/extract-logo.mjs`, `public/brand/luujaaa-logo.webp`, `src/lib/mascot/logo-runtime.js`, `logo-runtime.d.ts`, `logo.css`, `src/components/LuuLogo.tsx`, `SiteBrandHeader.tsx`, `src/app/brand.css`, `src/app/menu/loading.tsx`, root layout, menu/search/cart Suspense pages, dashboard sidebar, and `tests/ui/brand.spec.ts`.
 

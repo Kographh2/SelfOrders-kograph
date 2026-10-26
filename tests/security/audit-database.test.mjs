@@ -29,7 +29,7 @@ before(async () => {
   assert.equal((await db.query("SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='orders' AND column_name='payment_attempt_state'")).rows[0].count,0);
   await db.exec(await readFile("MIGRATION_OPERATIONS_20261024.sql","utf8"));
   assert.equal((await db.query("SELECT operations_summary(NULL) result")).rows[0].result.uncertain,0);
-  for(const file of ["MIGRATION_SECURITY_20261024.sql","MIGRATION_TRANSACTIONS_20261024.sql","MIGRATION_CHECKOUT_20261024.sql","MIGRATION_OPERATIONS_20261024.sql"])await db.exec(await readFile(file,"utf8"));
+  for(const file of ["MIGRATION_SECURITY_20261024.sql","MIGRATION_TRANSACTIONS_20261024.sql","MIGRATION_CHECKOUT_20261024.sql","MIGRATION_OPERATIONS_20261024.sql","MIGRATION_PUBLIC_CONTENT_20261026.sql"])await db.exec(await readFile(file,"utf8"));
 });
 const menu="44444444-4444-4444-8444-444444444444";
 const category="55555555-5555-4555-8555-555555555555";
@@ -169,4 +169,15 @@ test("catalog and store management cannot bypass API visibility or session revoc
   const result=await db.query("SELECT has_table_privilege('authenticated',$1,'UPDATE') allowed",[table]);
   assert.equal(result.rows[0].allowed,false,table);
  }
+});
+
+test("public content seed preserves edits and deletions, and settings are not writable through public roles",async()=>{
+ const first=await db.query("SELECT id FROM store_faqs WHERE id='e0261026-0000-4000-8000-000000000001'");assert.equal(first.rows.length,1);
+ await db.exec("UPDATE store_faqs SET answer='Owner edited this answer' WHERE id='e0261026-0000-4000-8000-000000000001'; DELETE FROM store_faqs WHERE id='e0261026-0000-4000-8000-000000000008'; UPDATE public_site_settings SET settings=jsonb_set(settings,'{businessName}','\"Owner brand\"');");
+ await db.exec(await readFile("MIGRATION_PUBLIC_CONTENT_20261026.sql","utf8"));
+ assert.equal((await db.query("SELECT answer FROM store_faqs WHERE id='e0261026-0000-4000-8000-000000000001'")).rows[0].answer,"Owner edited this answer");
+ assert.equal((await db.query("SELECT count(*) FROM store_faqs WHERE id='e0261026-0000-4000-8000-000000000008'")).rows[0].count,0);
+ assert.equal((await db.query("SELECT settings->>'businessName' name FROM public_site_settings")).rows[0].name,"Owner brand");
+ assert.equal((await db.query("SELECT count(*) FROM store_documents WHERE store_id IS NULL AND status='published'")).rows[0].count,3);
+ for(const role of ['anon','authenticated'])await assert.rejects(asRole(role,()=>db.exec("UPDATE public_site_settings SET settings='{}'")),/permission denied/);
 });

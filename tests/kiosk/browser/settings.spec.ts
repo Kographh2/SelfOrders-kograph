@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import {PUBLIC_SITE_DEFAULTS} from '../../../src/lib/public-site-config';
 
 const first = "11111111-1111-4111-8111-111111111111";
 const second = "22222222-2222-4222-8222-222222222222";
@@ -70,4 +71,38 @@ test("cashier does not see owner-only KIOSK controls", async ({ page }) => {
   await page.goto("/dashboard/settings");
   await expect(page.getByRole("heading", { name: "Pengaturan", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "KIOSK", exact: true })).toHaveCount(0);
+});
+
+test('owner saves public SEO settings only after server confirmation',async({page})=>{
+ await ownerFixture(page);let settings={...PUBLIC_SITE_DEFAULTS};const writes:any[]=[];
+ await page.route('**/api/public-site',async route=>{
+  if(route.request().method()==='PUT'){settings=route.request().postDataJSON();writes.push(settings);}
+  return route.fulfill({json:{data:settings,configured:true}});
+ });
+ await page.goto('/dashboard/settings');await page.getByRole('button',{name:'Publik & Google',exact:true}).click();
+ await page.getByLabel('Domain publik HTTPS').fill('https://luujaaa.example');
+ await page.getByLabel('Izinkan halaman publik diindeks mesin pencari').check();
+ await page.getByRole('button',{name:'Simpan informasi publik',exact:true}).click();
+ await expect(page.getByText('Informasi publik tersimpan.',{exact:false})).toBeVisible();
+ expect(writes[0].publicUrl).toBe('https://luujaaa.example');expect(writes[0].indexingEnabled).toBe(true);
+ await page.route('**/api/public-site',route=>route.fulfill({status:503,json:{error:'Fixture: belum tersimpan'}}));
+ await page.getByRole('button',{name:'Simpan informasi publik',exact:true}).click();
+ await expect(page.locator('.public-settings').getByRole('alert')).toContainText('Fixture: belum tersimpan');
+ await expect(page.getByText('Informasi publik tersimpan.',{exact:false})).toHaveCount(0);
+});
+
+test('owner edits an existing global FAQ and can keep it as a draft',async({page})=>{
+ await ownerFixture(page);
+ let faq={id:'faq-fixture',store_id:null,question:'Bagaimana memesan?',answer:'Pilih menu lalu periksa pesanan.',display_order:10,is_published:true};let saved:any;
+ await page.route('**/api/policies*',route=>{
+  if(route.request().method()==='POST'){saved=route.request().postDataJSON();faq={...faq,answer:saved.answer,is_published:saved.publish};return route.fulfill({json:{data:faq}});}
+  return route.fulfill({json:{data:{documents:[],faqs:[faq]}}});
+ });
+ await page.goto('/dashboard/policies');await page.getByRole('button',{name:'Edit FAQ',exact:true}).click();
+ await page.getByRole('textbox',{name:'Jawaban',exact:true}).fill('Periksa rincian sebelum membayar, lalu ikuti status pesanan.');
+ await page.getByLabel('Tampilkan kepada pelanggan').uncheck();
+ await page.getByRole('button',{name:'Simpan perubahan FAQ'}).click();
+ await expect(page.getByText('FAQ diperbarui.',{exact:true})).toBeVisible();
+ expect(saved.id).toBe('faq-fixture');expect(saved.storeId).toBeNull();expect(saved.publish).toBe(false);
+ await expect(page.getByText('Draft · Global',{exact:true})).toBeVisible();
 });

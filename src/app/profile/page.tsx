@@ -29,6 +29,6 @@ export default function ProfilePage() {
     </section>
     <h2 className="group-label">BANTUAN & INFORMASI</h2><section className="settings-group"><Link className="settings-link" href={help}><span className="row-icon"><LifeBuoy/></span><span><strong>Pusat bantuan</strong><small>Pertanyaan, pesanan, dan pembayaran</small></span><ChevronRight size={18}/></Link><Link className="settings-link" href={`${help}#privacy`}><span className="row-icon"><ShieldCheck/></span><span><strong>Privasi & ketentuan</strong><small>Kenali cara data Anda digunakan</small></span><ChevronRight size={18}/></Link></section>
     {user && <section className="logout-section">{confirm ? <div className="settings-group settings-body"><strong>Keluar dari akun ini?</strong><p className="setting-note">Anda tetap dapat melihat menu sebagai tamu.</p><div className="button-row"><button disabled={busy} className="action-secondary" onClick={()=>setConfirm(false)}>Batal</button><button disabled={busy} className="action-danger" onClick={async()=>{setBusy(true);try{await logout();setConfirm(false);router.replace("/profile")}catch{setError("Belum berhasil keluar. Coba lagi.")}finally{setBusy(false)}}}>{busy ? "Memproses..." : "Ya, keluar"}</button></div>{error&&<p role="alert">{error}</p>}</div> : <button className="logout-button" onClick={()=>setConfirm(true)}><LogOut size={18}/>Keluar dari akun</button>}</section>}
-    <p className="app-signature">SelfOrder </p>
+    <p className="app-signature">Luujaaa.id </p>
   </div></main>;
 }

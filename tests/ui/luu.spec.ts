@@ -74,12 +74,12 @@ test('timeout has a bounded single check; access denial stays on its page',async
  await expect(page.locator('iframe[title="Pemulihan koneksi bersama Luu"]')).toHaveCount(0);
 });
 
-test('Thinking only accompanies a slow catalog; a covered recovery never polls twice',async({page,context})=>{
+test('slow catalog uses only the animated wordmark; a covered recovery never polls twice',async({page,context})=>{
  await catalog(page);
  await page.route('**/api/stores',async route=>{await new Promise(resolve=>setTimeout(resolve,1600));await route.fulfill({json:{data:[store]}});});
  await page.goto('/menu?store=luu-store');
- await expect(page.locator('[data-luu-pose="thinking"]')).toBeVisible();
- await page.locator('[data-luu-pose="thinking"]').screenshot({path:'artifacts/ui/luu-thinking.png'});
+ await expect(page.locator('.menu-loading [data-brand-logo]')).toBeVisible();
+ await expect(page.locator('.menu-loading [data-luu-pose]')).toHaveCount(0);
  await expect(page.getByRole('heading',{name:'Luu Kitchen',exact:true})).toBeVisible();
  await expect(page.locator('[data-luu-pose="thinking"]')).toHaveCount(0);
  await page.route('**/api/stores',route=>route.fulfill({status:503,json:{error:'unavailable'}}));

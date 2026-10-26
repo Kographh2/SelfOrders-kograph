@@ -12,11 +12,15 @@ export async function GET(request: NextRequest) {
   const storeId = request.nextUrl.searchParams.get("storeId") || "";
   const user = await getAuthUser(request);
   const includeDraft = request.nextUrl.searchParams.get("includeDraft") === "1" && isOwnerOrAdmin(user) && (storeId ? hasStoreAccess(user, storeId) : user?.role === "owner");
+  let globalFaqQuery=supabaseAdmin.from("store_faqs").select("id,store_id,question,answer,display_order,is_published,updated_at").is("store_id",null).order("display_order");
+  let localFaqQuery=supabaseAdmin.from("store_faqs").select("id,store_id,question,answer,display_order,is_published,updated_at").eq("store_id",storeId).order("display_order");
+  if(!includeDraft||user?.role!=="owner")globalFaqQuery=globalFaqQuery.eq("is_published",true);
+  if(!includeDraft)localFaqQuery=localFaqQuery.eq("is_published",true);
   const [globalDocs, localDocs, globalFaq, localFaq] = await Promise.all([
     supabaseAdmin.from("store_documents").select("id,store_id,document_type,version,title,content,status,published_at,created_at").is("store_id", null).order("version", { ascending: false }),
     storeId ? supabaseAdmin.from("store_documents").select("id,store_id,document_type,version,title,content,status,published_at,created_at").eq("store_id", storeId).order("version", { ascending: false }) : Promise.resolve({ data: [], error: null }),
-    supabaseAdmin.from("store_faqs").select("id,store_id,question,answer,display_order,is_published,updated_at").is("store_id", null).eq("is_published", true).order("display_order"),
-    storeId ? supabaseAdmin.from("store_faqs").select("id,store_id,question,answer,display_order,is_published,updated_at").eq("store_id", storeId).eq("is_published", true).order("display_order") : Promise.resolve({ data: [], error: null }),
+    globalFaqQuery,
+    storeId ? localFaqQuery : Promise.resolve({ data: [], error: null }),
   ]);
   const error = globalDocs.error || localDocs.error || globalFaq.error || localFaq.error;
   if (error) return fail(error.message, 500);
@@ -44,7 +48,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!isOwnerOrAdmin(user)) return fail("Akses owner/admin diperlukan", 403);
-  const storeId = String(body.storeId || user?.storeId || "") || null;
+  const storeId = Object.prototype.hasOwnProperty.call(body,"storeId") ? (String(body.storeId || "") || null) : (user?.storeId || null);
   if (!storeId && user?.role !== "owner") return fail("Dokumen global hanya dapat diubah owner",403);
   if (storeId && !hasStoreAccess(user, storeId)) return fail("Cabang tidak valid", 403);
 
@@ -96,7 +100,7 @@ export async function DELETE(request: NextRequest) {
   if (!isOwnerOrAdmin(user)) return fail("Akses owner/admin diperlukan", 403);
   const id = request.nextUrl.searchParams.get("faqId") || "";
   const { data: faq } = await supabaseAdmin.from("store_faqs").select("id,store_id").eq("id", id).maybeSingle();
-  if (!faq || (faq.store_id && !hasStoreAccess(user, faq.store_id))) return fail("FAQ tidak ditemukan", 404);
+  if (!faq || (!faq.store_id && user?.role!=="owner") || (faq.store_id && !hasStoreAccess(user, faq.store_id))) return fail("FAQ tidak ditemukan", 404);
   const { error } = await supabaseAdmin.from("store_faqs").delete().eq("id", id);
   if (error) return fail(error.message, 500);
   return NextResponse.json({ success: true });

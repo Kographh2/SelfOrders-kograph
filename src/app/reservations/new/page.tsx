@@ -166,7 +166,7 @@ function NewReservationForm() {
       <a href={`/menu?store=${encodeURIComponent(storeId)}`} className="text-sm font-medium text-blue-700">← Kembali ke menu</a>
       <div className="mt-5 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="bg-navy-950 px-6 py-7 text-white sm:px-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">SelfOrder · Reservasi meja</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">Luujaaa.id · Reservasi meja</p>
           <h1 className="mt-2 text-2xl font-bold sm:text-3xl">{step === "verify" ? "Verifikasi nomor HP" : "Lengkapi reservasi"}</h1>
           <p className="mt-2 text-sm text-blue-100">{step === "verify" ? "Pastikan nomor HP milik Anda sebelum melanjutkan." : "Pilih waktu dan isi detail kunjungan Anda."}</p>
           <div className="mt-6 grid grid-cols-2 gap-2 text-xs font-semibold">

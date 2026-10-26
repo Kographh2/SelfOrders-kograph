@@ -24,10 +24,10 @@ test('logo loading tracks real requests; original letter timing stays at 1x',asy
  await page.route('**/api/stores',async route=>{await stores;await route.fulfill({json:{data:[store]}});});
  await page.route('**/api/menu/items?*',async route=>{await items;await route.fulfill({json:{data:[{id:'coffee',name:'Kopi Luu',price:20000,is_available:true}]}});});
  await page.goto('/menu?store=brand-store',{waitUntil:'domcontentloaded'});
- await expect(page.getByText('Memuat informasi toko…',{exact:true})).toBeVisible();
+ await expect(page.locator('.menu-loading [role="status"]')).toHaveText('Memuat informasi toko…');
  await expect(page.locator('.menu-loading [data-brand-logo]')).toBeVisible();
  await expect.poll(()=>page.evaluate(()=>(window as any).logoTimings.some((t:any)=>t.duration===480&&t.delay===600))).toBe(true);
- releaseStores();await expect(page.getByText('Memuat menu dan ketersediaan…',{exact:true})).toBeVisible();
+ releaseStores();await expect(page.locator('.menu-loading [role="status"]')).toHaveText('Memuat menu dan ketersediaan…');
  await page.setViewportSize({width:320,height:740});
  await page.screenshot({path:'artifacts/ui/logo-loading.png'});
  releaseItems();await expect(page.getByRole('heading',{name:'Luu Kitchen',exact:true})).toBeVisible();

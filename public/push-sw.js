@@ -4,7 +4,7 @@ self.addEventListener('push', (event) => {
   if (!event.data) return;
   try {
     let data;
-    try { data = event.data.json(); } catch { data = { title: 'SelfOrder', body: event.data.text() }; }
+    try { data = event.data.json(); } catch { data = { title: 'Luujaaa.id', body: event.data.text() }; }
     const options = {
       body: data.body || 'Ada pesanan baru!',
       icon: '/icon-192x192.png',
@@ -18,7 +18,7 @@ self.addEventListener('push', (event) => {
     };
 
     event.waitUntil(
-      self.registration.showNotification(data.title || 'SelfOrder', options)
+      self.registration.showNotification(data.title || 'Luujaaa.id', options)
     );
   } catch (error) {
     console.error('Push notification error:', error);

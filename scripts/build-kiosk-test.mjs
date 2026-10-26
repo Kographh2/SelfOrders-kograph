@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 await import('./extract-luu.mjs');
 await import('./extract-logo.mjs');
+await import('./build-app-icons.mjs');
 await import('./build-offline.mjs');
 const build = spawn(process.execPath, [require.resolve("next/dist/bin/next"), "build"], {
   stdio: "inherit",

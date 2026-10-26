@@ -79,7 +79,7 @@ export default function LoginPage() {
             transition={{ delay: 0.35 }}
             className="text-gray-600 dark:text-gray-400 text-sm"
           >
-            Masuk ke dashboard SelfOrder
+            Masuk ke dashboard Luujaaa.id
           </motion.p>
         </div>
 

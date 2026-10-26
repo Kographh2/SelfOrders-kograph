@@ -12,13 +12,21 @@ import MotionProvider from "@/components/MotionProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import PushNotificationProvider from "@/components/PushNotificationProvider";
 import ConnectivityGuard from "@/components/ConnectivityGuard";
+import {getPublicSite} from '@/lib/public-site';
+import {APP_NAME} from '@/lib/public-site-config';
+import './public-ui.css';
 
-export const metadata: Metadata = {
-  title: { default: "SelfOrder", template: "%s | SelfOrder" },
-  description: "Sistem self-order restaurant modern",
-  manifest: "/manifest.json",
-  icons: { icon: "/favicon.ico" },
-};
+export async function generateMetadata():Promise<Metadata>{
+ const site=await getPublicSite();
+ return {applicationName:APP_NAME,title:{default:site.title,template:`%s | ${APP_NAME}`},description:site.description,
+  metadataBase:site.publicUrl?new URL(site.publicUrl):undefined,manifest:'/manifest.json',
+  icons:{icon:[{url:'/favicon-48.png',sizes:'48x48',type:'image/png'},{url:'/favicon-96.png',sizes:'96x96',type:'image/png'}],shortcut:'/favicon.ico',apple:'/apple-touch-icon.png'},
+  appleWebApp:{capable:true,title:APP_NAME,statusBarStyle:'default'},
+  robots:{index:site.indexingEnabled,follow:site.indexingEnabled},verification:site.googleVerification?{google:site.googleVerification}:undefined,
+  openGraph:{siteName:APP_NAME,title:site.title,description:site.description,locale:'id_ID',type:'website',...(site.publicUrl?{url:site.publicUrl,images:[{url:site.publicUrl+'/icon-512x512.png',width:512,height:512,alt:APP_NAME}]}:{})},
+  twitter:{card:'summary',title:site.title,description:site.description},
+ };
+}
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -27,7 +35,8 @@ export const viewport: Viewport = {
   themeColor: "#0F1E2B",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const site=await getPublicSite();
   return (
     <html lang="id" suppressHydrationWarning>
       <head>
@@ -41,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="antialiased">
+        {site.publicUrl&&<script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify({'@context':'https://schema.org','@type':'WebSite',name:APP_NAME,url:site.publicUrl}).replace(/</g,'\\u003c')}}/>}
         <PreferencesProvider><MotionProvider><AuthProvider><OrderProvider>
           <PushNotificationProvider><ConnectivityGuard><SiteBrandHeader/>{children}<FloatingNav /></ConnectivityGuard></PushNotificationProvider>
         </OrderProvider></AuthProvider></MotionProvider></PreferencesProvider>

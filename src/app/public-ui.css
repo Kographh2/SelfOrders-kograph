@@ -1,0 +1,39 @@
+:root{--public-bg:#f7f8fa;--public-card:#fff;--public-ink:#142b45;--public-muted:#526478;--public-soft:#edf2f7;--public-line:#dce3eb;--public-action:#142b45;--public-on-action:#fff}
+.text-slate-400,.text-gray-400{color:var(--public-muted)}
+:is(.bg-navy-900,.bg-navy-950) .text-gold{color:#dbeafe}
+html.dark{--public-bg:#0c1828;--public-card:#122238;--public-ink:#eef3fa;--public-muted:#b7c6d8;--public-soft:#1a3049;--public-line:#31445b;--public-action:#eef3fa;--public-on-action:#142b45;color-scheme:dark}
+.public-page{min-height:calc(100dvh - 56px);background:var(--public-bg);color:var(--public-ink);padding:28px 18px 100px}
+.public-wrap{max-width:800px;margin:auto;display:grid;gap:24px;min-width:0}
+.public-heading{padding:16px 0}.public-heading h1{font-size:clamp(26px,5vw,34px);font-weight:650;letter-spacing:-.025em;margin:8px 0}
+.public-page p,.public-settings p{font-size:14px;line-height:1.8;overflow-wrap:anywhere}
+.public-heading p,.public-muted{color:var(--public-muted)}
+.public-card{background:var(--public-card);color:var(--public-ink);border:1px solid var(--public-line);border-radius:16px;padding:22px;min-width:0}
+.public-card h2,.public-settings h2{font-size:20px;font-weight:650}.public-card h3{font-size:16px;font-weight:650}
+.public-card p{margin-top:10px;color:var(--public-muted)}
+.public-actions{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:20px}
+.public-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border-radius:12px;padding:11px 18px;background:var(--public-action);color:var(--public-on-action);font-weight:600;font-size:14px}
+.public-button:disabled,fieldset:disabled .public-button{opacity:.5;cursor:wait}
+.public-link{color:var(--public-ink);text-decoration:underline;text-underline-offset:4px;overflow-wrap:anywhere}
+.public-page summary{font-weight:600;cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px}.public-page details+details{margin-top:12px}
+.public-settings{color:var(--public-ink);display:grid;gap:20px}.public-field{display:grid;gap:8px;margin-bottom:18px;font-size:13px;font-weight:600}
+.public-field input,.public-field textarea,.public-field select{width:100%;min-width:0;min-height:44px;padding:12px;border:1px solid var(--public-line);border-radius:10px;background:var(--public-card);color:var(--public-ink);font-weight:400}
+.public-check{display:flex;gap:10px;align-items:flex-start;margin:18px 0;font-size:14px}.public-check input{margin-top:4px;accent-color:var(--public-action)}
+.public-notice{padding:14px;border:1px solid var(--public-line);border-radius:12px;background:var(--public-soft);color:var(--public-ink)}
+.public-page :focus-visible,.public-settings :focus-visible{outline:2px solid var(--public-ink);outline-offset:4px}
+.public-doc{white-space:pre-wrap;font-size:14px;line-height:1.9;overflow-wrap:anywhere;margin-top:18px}
+/* Legacy surfaces share the same navy neutrals instead of pale panels with pale text. */
+html.dark :is(.bg-blue-50,.bg-slate-50,.bg-slate-100,.bg-navy-50,.bg-gray-50,.bg-gray-100){background-color:var(--public-soft)}
+html.dark :is(.text-slate-500,.text-slate-600,.text-slate-700,.text-gray-500,.text-gray-600,.text-gray-700){color:var(--public-muted)}
+html.dark :is(.text-blue-600,.text-blue-700,.text-blue-800,.text-blue-900){color:#c2d9f0}
+html.dark :is(.border-slate-100,.border-slate-200,.border-gray-200){border-color:var(--public-line)}
+html.dark :is(input,textarea,select):not([type=checkbox]):not([type=radio]){background-color:var(--public-card);color:var(--public-ink);border-color:var(--public-line)}
+.payment-sheet{background:var(--public-card)!important;color:var(--public-ink)}
+.payment-sheet :is(.bg-slate-50,.bg-blue-50){background:var(--public-soft);color:var(--public-ink)}
+.payment-sheet :is(.text-navy-900,.text-navy-950){color:var(--public-ink)}
+.payment-sheet :is(.text-navy-500,.text-navy-600,.text-slate-400,.text-slate-500,.text-slate-600){color:var(--public-muted)}
+.payment-sheet :is(.bg-navy-900,.bg-navy-950,.bg-blue-600){background:var(--public-action);color:var(--public-on-action)}
+.payment-sheet button[aria-pressed=true]{border-color:var(--public-ink);background:var(--public-soft);box-shadow:none}
+.payment-sheet :is(.text-blue-600,.text-blue-700){color:var(--public-ink)}
+.payment-sheet input,.payment-sheet select{background:var(--public-card);color:var(--public-ink);border-color:var(--public-line)}
+.payment-sheet input::placeholder{color:var(--public-muted);opacity:1}
+.payment-sheet [aria-pressed] small{line-height:1.5;display:block}

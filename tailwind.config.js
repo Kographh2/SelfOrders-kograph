@@ -9,6 +9,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        blue: {50:'#eff3f7',100:'#e1e8f0',200:'#c6d3e1',300:'#a3b8cd',400:'#7794b0',500:'#496f92',600:'#2e5370',700:'#1e3b52',800:'#162b3c',900:'#142b45',950:'#0c1828'},
         navy: {
           50:  "#F0F4F8",
           100: "#D9E4EE",
@@ -28,14 +29,14 @@ module.exports = {
           200: "#E6EEFF",
         },
         gold: {
-          DEFAULT: "#2563EB",
-          50: "#EFF6FF",
-          700: "#1D4ED8",
+          DEFAULT: "#2e5370",
+          50: "#eff3f7",
+          700: "#1e3b52",
         },
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
-        display: ["Plus Jakarta Sans", "Inter", "sans-serif"],
+        display: ["Inter", "system-ui", "sans-serif"],
       },
       borderRadius: {
         "2xl": "1rem",

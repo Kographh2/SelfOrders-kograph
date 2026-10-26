@@ -59,7 +59,7 @@ function LoginForm() {
           <div className="w-10 h-10 bg-navy-900 rounded-2xl flex items-center justify-center">
             <UtensilsCrossed className="w-5 h-5 text-gold" />
           </div>
-          <span className="font-display font-bold text-xl text-navy-900">SelfOrder</span>
+          <span className="font-display font-bold text-xl text-navy-900">Luujaaa.id</span>
         </div>
 
         {/* Tabs */}

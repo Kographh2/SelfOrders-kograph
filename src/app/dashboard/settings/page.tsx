@@ -13,8 +13,9 @@ import { supabase } from "@/lib/supabase";
 import type { Store as StoreType } from "@/types";
 
 import KioskSettings from "@/components/kiosk/KioskSettings";
+import PublicSiteSettings from "@/components/PublicSiteSettings";
 
-type Tab = "profile" | "password" | "store" | "kiosk";
+type Tab = "profile" | "password" | "store" | "kiosk" | "public";
 
 export default function SettingsPage() {
   const { user, token, login } = useAuth();
@@ -160,7 +161,7 @@ export default function SettingsPage() {
     { id: "profile",  label: "Profil",    icon: User  },
     { id: "password", label: "Password",  icon: Lock  },
     ...(isOwnerOrAdmin ? [{ id: "store" as Tab, label: "Staff & Toko", icon: Store }] : []),
-    ...(isOwner ? [{ id: "kiosk" as Tab, label: "KIOSK", icon: Monitor }] : []),
+    ...(isOwner ? [{ id: "kiosk" as Tab, label: "KIOSK", icon: Monitor },{id:"public" as Tab,label:"Publik & Google",icon:Store}] : []),
   ];
 
   const MsgBanner = ({ msg }: { msg: { type: "ok" | "err"; text: string } | null }) =>
@@ -195,7 +196,7 @@ export default function SettingsPage() {
         {activeTab === "kiosk" && !isOwner && <p>Akses khusus owner.</p>}
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-navy-50 rounded-xl p-1 mb-6">
+        <div className="flex flex-wrap gap-1 bg-navy-50 rounded-xl p-1 mb-6">
           {TABS.map(tab => {
             const Icon = tab.icon;
             return (
@@ -219,6 +220,7 @@ export default function SettingsPage() {
 
         {/* ── Profile Tab ────────────────────────────────────────── */}
         {activeTab === "kiosk" && isOwner && <KioskSettings token={token} />}
+        {activeTab === "public" && isOwner && <PublicSiteSettings token={token}/> }
         {activeTab === "profile" && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
