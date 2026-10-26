@@ -7,7 +7,7 @@ function bootRecovery(){
  let reduced=false;try{reduced=localStorage.getItem('selforder_reduce_motion')==='1';const theme=localStorage.getItem('selforder_theme');document.documentElement.classList.toggle('dark',theme==='dark'||((!theme||theme==='system')&&matchMedia('(prefers-color-scheme: dark)').matches));}catch{}
  const rig=createLuu(byId('mascot').querySelector('svg'),{pose:'drained',reducedMotion:reduced});
  const logoElement=byId('brand-logo');
- const logo=createLuuLogo(logoElement,{src:logoElement.querySelector('img').src,reducedMotion:reduced});
+ const logo=createLuuLogo(logoElement,{src:logoElement.querySelector('img').src,loop:true,reducedMotion:reduced});
  const stopGame=mountGame(byId);
  byId('draft').replaceChildren();byId('saved').hidden=true;byId('empty-draft').hidden=false;
  try{

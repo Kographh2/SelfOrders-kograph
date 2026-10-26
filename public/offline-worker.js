@@ -1,6 +1,6 @@
 // Only the self-contained recovery document is cached. Never cache account,
 // order, payment, API, or authenticated page responses.
-const RECOVERY_CACHE = "selforder-recovery-v2-luu-1418672544a6";
+const RECOVERY_CACHE = "selforder-recovery-v2-luu-823cf2cadc39";
 const RECOVERY_URL = "/offline.html";
 
 self.addEventListener("install", event => {

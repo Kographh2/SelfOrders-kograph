@@ -1,4 +1,4 @@
-.luu-logo{display:inline-block;flex-shrink:0;border-radius:9px;background:#fff;vertical-align:middle;padding:3px 5px;box-sizing:border-box}
+.luu-logo{display:inline-block;flex-shrink:0;background:transparent;vertical-align:middle;padding:3px 5px;box-sizing:border-box}
 .luu-logo .luu{width:100%}
 .site-brand-header{display:flex;align-items:center;min-height:56px;padding:8px max(16px,env(safe-area-inset-left)) 8px;background:#f7f8fa;padding-top:max(8px,env(safe-area-inset-top));border-bottom:1px solid #e8edf2}
 .dark .site-brand-header{background:#0c1828;border-color:#ffffff12}

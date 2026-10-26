@@ -3,7 +3,7 @@ import {useEffect,useRef} from 'react';
 import {usePreferences} from '@/contexts/PreferencesContext';
 import {createLuuLogo} from '@/lib/mascot/logo-runtime';
 
-export default function LuuLogo({width=120,loop=false}:{width?:number;loop?:boolean}){
+export default function LuuLogo({width=120,loop=true}:{width?:number;loop?:boolean}){
   const ref=useRef<HTMLSpanElement>(null);
   const {preferences}=usePreferences();
   useEffect(()=>{
