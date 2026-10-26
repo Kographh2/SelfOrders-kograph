@@ -3,6 +3,9 @@ import { supabaseAdmin } from "@/lib/supabase-server";
 import { getAuthUser, isStaff, hasStoreAccess } from "@/lib/auth";
 import { getStoreOperatingStatus } from "@/lib/store-hours";
 import { isMenuScheduledNow } from "@/lib/menu-schedule";
+import { guestSession } from "@/lib/guest-session";
+import { boundedJson, requestBudget, sameOrigin } from "@/lib/request-security";
+import { CUSTOMER_ORDER_FIELDS } from "@/lib/public-fields";
 import { createHash } from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +20,9 @@ export async function GET(request: NextRequest) {
     const storeId = searchParams.get("storeId");
     const status = searchParams.get("status");
     const paymentStatus = searchParams.get("paymentStatus");
+    const page=Math.max(1,Math.min(10000,Number(searchParams.get("page"))||1));
+    const limit=Math.max(1,Math.min(100,Number(searchParams.get("limit"))||50));
+    if(!Number.isInteger(page)||!Number.isInteger(limit))return NextResponse.json({error:"Pagination tidak valid"},{status:400});
 
     if (!isStaff(user)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
@@ -32,17 +38,18 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from("orders")
-      .select("*, table:tables(id,number,store_id), order_items(*, menu_item:menu_items(id,name,price)), payments(*)")
+      .select(CUSTOMER_ORDER_FIELDS,{count:"exact"})
       .order("created_at", { ascending: false });
 
     if (effectiveStoreId) query = query.eq("store_id", effectiveStoreId);
     if (status) query = query.eq("status", status);
+    if(searchParams.get("active")==="1")query=query.in("status",["pending","confirmed","preparing","ready"]);
     if (paymentStatus) query = query.eq("payment_status", paymentStatus);
 
-    const { data, error } = await query;
+    const { data, error, count } = await query.range((page-1)*limit,page*limit-1);
     if (error) throw error;
 
-    return NextResponse.json({ data: data ?? [] }, { status: 200 });
+    return NextResponse.json({ data: data ?? [], pagination:{page,limit,total:count || 0,hasMore:page*limit<(count || 0)} }, { status: 200 });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Failed to fetch orders";
     console.error("Orders GET error:", error);
@@ -52,14 +59,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    if (!sameOrigin(request)) return NextResponse.json({ error: "Origin ditolak" }, { status: 403 });
+    const ipBudget=await requestBudget(request,"checkout-source",60,60);if(ipBudget)return ipBudget;
+    const body = await boundedJson(request);
 
     const {
       storeId,
       tableId,      // bisa berupa UUID atau nomor meja (string/number)
       tableNumber,  // fallback: nomor meja eksplisit
-      userId,
-      anonymousSessionId,
+      requestId,
       customerName,
       customerPhone,
       customerEmail,
@@ -73,29 +81,13 @@ export async function POST(request: NextRequest) {
       reservationToken,
     } = body;
     const customerAuth = await getAuthUser(request);
-    let claimedPromo: any = null;
-    let claimedLoyalty: any = null;
-    if (loyaltyRedemptionCode) {
-      if (!customerAuth || customerAuth.role !== "user") return NextResponse.json({ error: "Login diperlukan untuk memakai reward poin" }, { status: 401 });
-      if (promoClaimId) return NextResponse.json({ error: "Gunakan satu promo atau reward poin dalam satu pesanan" }, { status: 400 });
-      const code = String(loyaltyRedemptionCode).trim().toUpperCase();
-      const { data: redemption } = await supabaseAdmin.from("loyalty_redemptions")
-        .select("id,user_id,status,expires_at,reward:loyalty_rewards(id,store_id,min_purchase,discount_amount,name)")
-        .eq("code", code).eq("user_id", customerAuth.userId).eq("status", "available").gt("expires_at", new Date().toISOString()).maybeSingle();
-      const reward = Array.isArray(redemption?.reward) ? redemption.reward[0] : redemption?.reward;
-      if (!redemption || !reward || reward.store_id !== storeId) return NextResponse.json({ error: "Kode reward tidak valid, kedaluwarsa, atau bukan untuk cabang ini" }, { status: 400 });
-      claimedLoyalty = { redemption, reward };
-    }
-    if (promoClaimId) {
-      if (!customerAuth || customerAuth.role !== "user") return NextResponse.json({ error: "Login diperlukan untuk memakai promo" }, { status: 401 });
-      const { data: claim } = await supabaseAdmin.from("promo_claims").select("id,user_id,used_order_id,promo:promos(*)").eq("id", promoClaimId).eq("user_id", customerAuth.userId).single();
-      const promo = Array.isArray(claim?.promo) ? claim?.promo[0] : claim?.promo;
-      const now = Date.now();
-      if (!claim || !promo || claim.used_order_id || !promo.is_active || promo.store_id !== storeId || new Date(promo.starts_at).getTime() > now || (promo.ends_at && new Date(promo.ends_at).getTime() < now)) {
-        return NextResponse.json({ error: "Promo tidak valid, kedaluwarsa, atau sudah digunakan" }, { status: 400 });
-      }
-      claimedPromo = { claim, promo };
-    }
+    const anonymousSessionId = guestSession(request);
+    if (!customerAuth && !anonymousSessionId) return NextResponse.json({error:"Sesi pemesanan tidak valid. Muat ulang halaman."},{status:401});
+    if (!UUID_REGEX.test(String(requestId))) return NextResponse.json({error:"ID checkout tidak valid"},{status:400});
+    const limited = await requestBudget(request,"checkout",10,60,customerAuth?.userId || anonymousSessionId!);
+    if(limited)return limited;
+    if ((promoClaimId || loyaltyRedemptionCode) && (!customerAuth || customerAuth.role !== "user")) return NextResponse.json({error:"Login pelanggan diperlukan untuk diskon"},{status:401});
+    if(promoClaimId && loyaltyRedemptionCode)return NextResponse.json({error:"Pilih satu promo atau reward"},{status:400});
 
     if (!storeId) {
       return NextResponse.json({ error: "storeId is required" }, { status: 400 });
@@ -110,7 +102,7 @@ export async function POST(request: NextRequest) {
       const nextOpen = operatingStatus.next_open_label ? ` Buka kembali ${operatingStatus.next_open_label}.` : "";
       return NextResponse.json({ error: `Toko sedang tutup.${nextOpen}` }, { status: 409 });
     }
-    if (!Array.isArray(items) || items.length === 0) {
+    if (!Array.isArray(items) || items.length === 0 || items.length > 50) {
       return NextResponse.json({ error: "Order harus memiliki minimal 1 item" }, { status: 400 });
     }
     if (!['dine_in', 'pickup'].includes(orderType)) return NextResponse.json({ error: "Jenis pesanan tidak valid" }, { status: 400 });
@@ -124,7 +116,7 @@ export async function POST(request: NextRequest) {
     }
 
     for (const item of items) {
-      if (!item.menu_item_id || typeof item.quantity !== "number" || item.quantity < 1) {
+      if (!item.menu_item_id || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 100) {
         return NextResponse.json(
           { error: "Setiap item harus punya menu_item_id dan quantity >= 1" },
           { status: 400 }
@@ -204,101 +196,20 @@ export async function POST(request: NextRequest) {
     });
     if (requiredPolicies.length && policyAccepted !== true) return NextResponse.json({ error: "Setujui Kebijakan Privasi dan Syarat Penggunaan sebelum memesan" }, { status: 412 });
 
-    // ── Buat order via atomic DB function ─────────────────────────
-    const { data: result, error: rpcError } = await supabaseAdmin.rpc("create_order_atomic", {
-      p_store_id:            storeId,
-      p_table_id:            resolvedTableId,
-      p_user_id:             customerAuth?.userId ?? null,
-      p_anonymous_session_id: anonymousSessionId ?? null,
-      p_customer_name:       customerName ?? null,
-      p_customer_phone:      customerPhone ?? null,
-      p_customer_email:      customerEmail ?? null,
-      p_notes:               notes ?? null,
-      p_items:               items,
-    });
-
-    if (rpcError) {
-      console.error("create_order_atomic error:", rpcError);
-      return NextResponse.json(
-        { error: rpcError.message || "Gagal membuat pesanan" },
-        { status: 400 }
-      );
-    }
-
-    if (requiredPolicies.length) {
-      const sessionHash = !customerAuth?.userId && anonymousSessionId
-        ? createHash("sha256").update(String(anonymousSessionId)).digest("hex") : null;
-      const { error: acceptanceError } = await supabaseAdmin.from("policy_acceptances").insert(requiredPolicies.map(policy => ({
-        order_id: result.order_id,
-        user_id: customerAuth?.userId || null,
-        anonymous_session_hash: sessionHash,
-        store_id: storeId,
-        document_id: policy!.id,
-        document_version: policy!.version,
-      })));
-      if (acceptanceError) {
-        await supabaseAdmin.from("orders").delete().eq("id", result.order_id);
-        return NextResponse.json({ error: "Persetujuan kebijakan belum dapat dicatat; pesanan tidak dibuat" }, { status: 500 });
-      }
-    }
-
     const prepMinutes = Math.max(5, Math.min(240, items.reduce((sum: number, item: { menu_item_id: string; quantity: number }) => sum + (Number(menuById.get(item.menu_item_id)?.prep_minutes) || 5) * item.quantity, 0)));
-    const estimatedReadyAt = orderType === "pickup" ? orderDate.toISOString() : new Date(Date.now() + prepMinutes * 60_000).toISOString();
-    await supabaseAdmin.from("orders").update({ order_type: orderType, pickup_at: orderType === "pickup" ? orderDate.toISOString() : null, estimated_ready_at: estimatedReadyAt }).eq("id", result.order_id);
-    result.order_type = orderType;
-    result.pickup_at = orderType === "pickup" ? orderDate.toISOString() : null;
-    result.estimated_ready_at = estimatedReadyAt;
-
-    if (claimedPromo) {
-      const orderId = result.order_id as string;
-      const { data: orderItems } = await supabaseAdmin.from("order_items").select("menu_item_id,subtotal").eq("order_id", orderId);
-      let eligibleSubtotal = Number(result.subtotal);
-      if (claimedPromo.promo.applies_to === "products") {
-        const { data: targets } = await supabaseAdmin.from("promo_products").select("menu_item_id").eq("promo_id", claimedPromo.promo.id);
-        const allowed = new Set((targets || []).map(row => row.menu_item_id));
-        eligibleSubtotal = (orderItems || []).filter(row => allowed.has(row.menu_item_id)).reduce((sum, row) => sum + Number(row.subtotal), 0);
-      }
-      if (Number(result.subtotal) < Number(claimedPromo.promo.min_purchase || 0) || eligibleSubtotal <= 0) {
-        await supabaseAdmin.from("orders").delete().eq("id", orderId);
-        return NextResponse.json({ error: "Pesanan belum memenuhi syarat promo" }, { status: 400 });
-      }
-      let discount = claimedPromo.promo.discount_type === "percent" ? eligibleSubtotal * Number(claimedPromo.promo.discount_value) / 100 : Number(claimedPromo.promo.discount_value);
-      if (claimedPromo.promo.max_discount) discount = Math.min(discount, Number(claimedPromo.promo.max_discount));
-      discount = Math.max(0, Math.min(Math.round(discount), Number(result.total_amount)));
-      const finalTotal = Number(result.total_amount) - discount;
-      const { data: usedClaim } = await supabaseAdmin.from("promo_claims").update({ used_order_id: orderId, used_at: new Date().toISOString() }).eq("id", promoClaimId).is("used_order_id", null).select("id").maybeSingle();
-      if (!usedClaim) { await supabaseAdmin.from("orders").delete().eq("id", orderId); return NextResponse.json({ error: "Promo baru saja digunakan di pesanan lain" }, { status: 409 }); }
-      await Promise.all([
-        supabaseAdmin.from("orders").update({ promo_id: claimedPromo.promo.id, promo_claim_id: promoClaimId, promo_discount: discount, total_amount: finalTotal }).eq("id", orderId),
-        supabaseAdmin.from("payments").update({ amount: finalTotal }).eq("order_id", orderId),
-      ]);
-      result.promo_discount = discount;
-      result.total_amount = finalTotal;
-    }
-
-    if (claimedLoyalty) {
-      const orderId = result.order_id as string;
-      if (Number(result.subtotal) < Number(claimedLoyalty.reward.min_purchase || 0)) {
-        await supabaseAdmin.from("orders").delete().eq("id", orderId);
-        return NextResponse.json({ error: "Pesanan belum memenuhi minimum pembelian reward" }, { status: 400 });
-      }
-      const payableTotal = Math.max(0, Number(result.total_amount));
-      const discount = Math.max(0, Math.min(Math.round(Number(claimedLoyalty.reward.discount_amount)), Math.max(0, payableTotal - 1)));
-      const finalTotal = Number(result.total_amount) - discount;
-      const { data: usedRedemption } = await supabaseAdmin.from("loyalty_redemptions")
-        .update({ status: "reserved", used_order_id: orderId })
-        .eq("id", claimedLoyalty.redemption.id).eq("status", "available").gt("expires_at", new Date().toISOString()).select("id").maybeSingle();
-      if (!usedRedemption) {
-        await supabaseAdmin.from("orders").delete().eq("id", orderId);
-        return NextResponse.json({ error: "Kode reward baru saja dipakai pada pesanan lain" }, { status: 409 });
-      }
-      await Promise.all([
-        supabaseAdmin.from("orders").update({ loyalty_discount: discount, total_amount: finalTotal }).eq("id", orderId),
-        supabaseAdmin.from("payments").update({ amount: finalTotal }).eq("order_id", orderId),
-      ]);
-      result.loyalty_discount = discount;
-      result.total_amount = finalTotal;
-    }
+    const input = {
+      store_id:storeId,table_id:resolvedTableId,user_id:customerAuth?.userId || null,guest:anonymousSessionId,
+      name:String(customerName || "").slice(0,120),phone:String(customerPhone || "").slice(0,30),
+      email:String(customerEmail || "").slice(0,254),notes:notes || null,items,
+      promo_claim_id:promoClaimId || null,loyalty_code:loyaltyRedemptionCode ? String(loyaltyRedemptionCode).trim().toUpperCase() : null,
+      policy_accepted:policyAccepted === true,order_type:orderType,pickup_at:orderType==="pickup" ? orderDate.toISOString() : null,
+    };
+    const {data:result,error:rpcError} = await supabaseAdmin.rpc("checkout_order",{
+      p_request:requestId,p_identity:customerAuth?.userId || anonymousSessionId!,
+      p_hash:createHash("sha256").update(JSON.stringify(input)).digest("hex"),
+      p_data:{...input,ready_at:orderType==="pickup" ? orderDate.toISOString() : new Date(Date.now()+prepMinutes*60_000).toISOString()},
+    });
+    if(rpcError)return NextResponse.json({error:rpcError.message || "Pesanan belum dapat dibuat"},{status:409});
 
     return NextResponse.json({ data: result }, { status: 201 });
   } catch (error: unknown) {

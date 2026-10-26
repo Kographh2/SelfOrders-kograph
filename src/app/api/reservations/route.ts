@@ -1,3 +1,4 @@
+import { boundedJson, requestBudget, sameOrigin } from "@/lib/request-security";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { getAuthUser, hasStoreAccess, isStaff } from "@/lib/auth";
@@ -20,7 +21,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
+  if(!sameOrigin(request))return NextResponse.json({error:"Origin ditolak"},{status:403});
+  const limited=await requestBudget(request,"reservations",10,60);if(limited)return limited;
+  const body = await boundedJson(request,8192);
   const bearer = request.headers.get("x-phone-access-token") || "";
   const verifiedPhone = await getVerifiedReservationPhone(bearer);
   if (!verifiedPhone) return NextResponse.json({ error: "Verifikasi nomor HP diperlukan" }, { status: 401 });

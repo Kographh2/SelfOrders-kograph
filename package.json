@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "generate:luu": "node scripts/extract-luu.mjs && node scripts/build-offline.mjs",
+    "prebuild": "npm run generate:luu",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -13,7 +15,8 @@
     "build:kiosk:test": "node scripts/build-kiosk-test.mjs",
     "test:kiosk:browser": "playwright test --config=playwright.kiosk.config.ts",
     "test:ui": "playwright test --config=playwright.ui.config.ts",
-    "test:ads": "node --test tests/ads/*.test.mjs"
+    "test:ads": "node --test tests/ads/*.test.mjs",
+    "test:security": "node --test tests/security/*.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
@@ -25,11 +28,12 @@
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "1.48.0",
     "midtrans-client": "^1.4.2",
-    "next": "15.5.26",
+    "next": "15.5.28",
     "qrcode": "^1.5.4",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-hot-toast": "2.6.1",
+    "sharp": "0.35.5",
     "web-push": "3.6.7"
   },
   "devDependencies": {
@@ -42,9 +46,18 @@
     "@types/react-dom": "^19",
     "autoprefixer": "^10.6.1",
     "eslint": "^8",
-    "eslint-config-next": "15.5.26",
+    "eslint-config-next": "15.5.28",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
+  },
+  "overrides": {
+    "postcss-selector-parser": "7.1.6",
+    "source-map-js": "1.2.2",
+    "follow-redirects": "1.16.1",
+    "next": {
+      "postcss": "$postcss",
+      "sharp": "$sharp"
+    }
   }
 }

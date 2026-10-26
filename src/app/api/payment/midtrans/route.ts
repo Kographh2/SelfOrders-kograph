@@ -6,6 +6,7 @@ import { getAuthUser } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  let claimedOrder: string | null = null;
   try {
     const body = await request.json();
     const { orderId, sessionId } = body;
@@ -59,45 +60,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build item details from DB snapshots — NO client prices
-    const midtransItems = (order.order_items ?? []).map((item: {
-      id: string;
-      name_snapshot: string;
-      price_snapshot: number;
-      quantity: number;
-    }) => ({
-      id: item.id,
-      name: item.name_snapshot,
-      price: Math.round(item.price_snapshot),
-      quantity: item.quantity,
-    }));
-
-    // Add tax & service as line items if > 0
-    if (order.tax_amount > 0) {
-      midtransItems.push({
-        id: "tax",
-        name: "Pajak (PPN 11%)",
-        price: Math.round(order.tax_amount),
-        quantity: 1,
-      });
-    }
-    if (order.service_charge > 0) {
-      midtransItems.push({
-        id: "service",
-        name: "Service Charge",
-        price: Math.round(order.service_charge),
-        quantity: 1,
-      });
-    }
-    if (Number(order.promo_discount) > 0) {
-      midtransItems.push({
-        id: "promo-discount",
-        name: "Diskon Promo",
-        price: -Math.round(Number(order.promo_discount)),
-        quantity: 1,
-      });
-    }
-
+    const {data:claimed,error:claimError}=await supabaseAdmin.from("orders")
+      .update({payment_attempt_state:"creating",payment_method:"snap"})
+      .eq("id",orderId).eq("payment_status","pending").neq("status","cancelled").eq("payment_attempt_state","idle")
+      .is("snap_token",null).select("id").maybeSingle();
+    if(claimError || !claimed)return NextResponse.json({error:"Pembayaran sedang disiapkan atau perlu diperiksa. Buka halaman pesanan."},{status:409});
+    claimedOrder=orderId;
+    // One authoritative total avoids item rounding and option/loyalty discrepancies.
+    const midtransItems=[{id:orderId,name:`Pesanan #${order.order_number}`,price:Math.round(order.total_amount),quantity:1}];
     const transaction = await createSnapTransaction({
       orderId: orderId, // Midtrans order_id = our order UUID
       amount: Math.round(order.total_amount), // Verified from DB
@@ -111,9 +81,10 @@ export async function POST(request: NextRequest) {
     });
 
     // Store snap token in order
-    await supabaseAdmin
+    const {error:saveError}=await supabaseAdmin
       .from("orders")
       .update({
+        payment_attempt_state: "ready",
         snap_token: transaction.token,
         redirect_url: transaction.redirectUrl,
         payment_method: "snap",
@@ -121,6 +92,8 @@ export async function POST(request: NextRequest) {
       })
       .eq("id", orderId);
 
+    if(saveError)throw new Error("Token pembayaran belum berhasil disimpan");
+    claimedOrder=null;
     // Update payment record
     await supabaseAdmin
       .from("payments")
@@ -141,6 +114,7 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error: unknown) {
+    if(claimedOrder)await supabaseAdmin.from("orders").update({payment_attempt_state:"uncertain"}).eq("id",claimedOrder).eq("payment_attempt_state","creating");
     const msg = error instanceof Error ? error.message : "Payment initialization failed";
     console.error("Payment Midtrans error:", error);
     return NextResponse.json({ error: msg }, { status: 500 });

@@ -2,6 +2,8 @@ import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser, hasStoreAccess, isStaff, isOwnerOrAdmin } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-server";
+import { boundedFormData } from "@/lib/request-security";
+import { safeImage } from "@/lib/safe-image";
 import { writeAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +41,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await getAuthUser(request);
   if (!isStaff(user)) return fail("Login staf diperlukan", 401);
-  const form = await request.formData();
+  if(Number(request.headers.get("content-length"))>6*1024*1024)return fail("Upload terlalu besar",413);
+  const form = await boundedFormData(request);
   const storeId = String(form.get("storeId") || user?.storeId || "");
   const eventType = String(form.get("eventType") || "");
   if (!storeId || !hasStoreAccess(user, storeId)) return fail("Akses cabang ditolak", 403);
@@ -77,9 +80,11 @@ export async function POST(request: NextRequest) {
   if (selfie instanceof File && (!new Set(["image/jpeg", "image/webp"]).has(selfie.type) || selfie.size < 1024 || selfie.size > 5 * 1024 * 1024)) return fail("Selfie harus JPEG/WebP, 1 KB–5 MB", 400);
   let selfiePath: string | null = null;
   if (selfie instanceof File) {
-    const extension = selfie.type === "image/webp" ? "webp" : "jpg";
+    let bytes:Buffer;
+    try{bytes=await safeImage(selfie);}catch{return fail("Foto tidak valid atau dimensinya terlalu besar",400);}
+    const extension = "webp";
     selfiePath = `${storeId}/${workDate}/${user!.userId}/${randomUUID()}.${extension}`;
-    const { error } = await supabaseAdmin.storage.from("attendance-selfies").upload(selfiePath, await selfie.arrayBuffer(), { contentType: selfie.type, upsert: false });
+    const { error } = await supabaseAdmin.storage.from("attendance-selfies").upload(selfiePath, bytes, { contentType: "image/webp", upsert: false });
     if (error) return fail("Foto absensi belum bisa disimpan. Pastikan migrasi/bucket absensi sudah diterapkan.", 503);
   }
 

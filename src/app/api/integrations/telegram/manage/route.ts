@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET || "";
   let webhookInfo: Record<string, unknown> | null = null;
   let telegramError: string | null = null;
-  if (token) {
+  if (token && user.role==="owner") {
     try {
       webhookInfo = await telegramRequest(token, "getWebhookInfo");
     } catch (error) {
@@ -66,8 +66,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const user = await managerOnly(request);
+  if(user?.role!=="owner")return NextResponse.json({error:"Konfigurasi bot global hanya dapat diubah owner"},{status:403});
   if (!user || !["owner", "admin"].includes(user.role)) return NextResponse.json({ error: "Akses khusus owner/admin cabang" }, { status: 403 });
-  if (user.role === "admin" && !user.storeId) return NextResponse.json({ error: "Admin belum ditetapkan ke cabang" }, { status: 403 });
+
   const token = process.env.TELEGRAM_BOT_TOKEN || "";
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET || "";
   if (!token || !secret) {
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
       allowed_updates: ["message", "callback_query"],
       drop_pending_updates: false,
     });
-    await writeTelegramActivity({ eventType: "webhook_activated", actorType: "system", actorUserId: user.userId, storeId: user.role === "admin" ? user.storeId : null, details: { url: webhookUrl } });
+    await writeTelegramActivity({ eventType: "webhook_activated", actorType: "system", actorUserId: user.userId, storeId: null, details: { url: webhookUrl } });
     const webhookInfo = await telegramRequest(token, "getWebhookInfo");
     return NextResponse.json({ data: { webhookInfo } });
   } catch (error) {

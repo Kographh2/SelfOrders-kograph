@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { getAuthUser, hasStoreAccess, isStaff } from "@/lib/auth";
 import { notifyOrderStatus } from "@/lib/push-notifications";
-import { finalizeLoyaltyRedemption } from "@/lib/loyalty-order";
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,23 +25,18 @@ export async function POST(request: NextRequest) {
       if (!isStaff(user) || !hasStoreAccess(user, order.store_id)) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
       if (order.status === "cancelled") return NextResponse.json({ error: "Pesanan yang dibatalkan tidak dapat dikonfirmasi pembayarannya" }, { status: 409 });
       if (order.payment_status === "paid") return NextResponse.json({ data: order });
-      const { data: shift } = await supabaseAdmin.from("cashier_shifts").select("id").eq("store_id", order.store_id).eq("cashier_id", user!.userId).is("closed_at", null).maybeSingle();
-      if (!shift) return NextResponse.json({ error: "Buka shift kasir sebelum mengonfirmasi pembayaran tunai" }, { status: 409 });
-      await supabaseAdmin.from("payments").update({ status:"paid", paid_by:user!.userId, paid_at:new Date().toISOString(), updated_at:new Date().toISOString() }).eq("order_id", orderId);
-      const { data, error } = await supabaseAdmin.from("orders").update({ payment_status:"paid", status:"confirmed", payment_method:"cash", updated_at:new Date().toISOString() }).eq("id", orderId).select().single();
-      if (error) throw error;
-      await finalizeLoyaltyRedemption(orderId, "paid");
-      await notifyOrderStatus(orderId, "confirmed");
+      const { data, error } = await supabaseAdmin.rpc("cash_payment",{p_order:orderId,p_actor:user!.userId,p_confirm:true});
+      if(error)return NextResponse.json({error:error.message},{status:409});
+      if(data?.changed)await notifyOrderStatus(orderId, "confirmed");
       return NextResponse.json({ data });
     }
     const customer = await getAuthUser(request);
     const ownsOrder = (customer?.userId && customer.userId === order.user_id) || (body.sessionId && body.sessionId === order.anonymous_session_id);
     if (!ownsOrder) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     if (order.payment_status !== "pending") return NextResponse.json({ error: "Pembayaran sudah diproses" }, { status: 400 });
-    const cashCode = `CASH-${String(order.order_number).padStart(3,"0")}-${order.id.slice(0,8).toUpperCase()}`;
-    await supabaseAdmin.from("orders").update({ payment_method:"cash", updated_at:new Date().toISOString() }).eq("id", orderId);
-    await supabaseAdmin.from("payments").update({ method:"cash", transaction_id:cashCode, updated_at:new Date().toISOString() }).eq("order_id", orderId);
-    return NextResponse.json({ data:{ cashCode, orderNumber:order.order_number, total:order.total_amount } });
+    const {data,error}=await supabaseAdmin.rpc("cash_payment",{p_order:orderId,p_actor:customer?.userId || null,p_confirm:false});
+    if(error)return NextResponse.json({error:error.message},{status:409});
+    return NextResponse.json({data});
   } catch (error) {
     console.error("Cash payment error", error);
     return NextResponse.json({ error:"Gagal memproses pembayaran tunai" }, { status:500 });

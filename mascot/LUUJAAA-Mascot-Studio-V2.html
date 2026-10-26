@@ -1,0 +1,645 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>LUUJAAA · Mascot Studio V2</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f3f7ff;--fg:#14213d;--card:#fff;--line:#d5def0;--ac:#213570;--acf:#fff;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0e1424;--fg:#e8eefc;--card:#172038;--line:#2a3658;--ac:#6f93ff;--acf:#0e1424;color-scheme:dark}}
+:root[data-theme=dark]{--bg:#0e1424;--fg:#e8eefc;--card:#172038;--line:#2a3658;--ac:#6f93ff;--acf:#0e1424;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+header,main,footer{max-width:1040px;margin:auto;padding:16px}h1{margin:0;font-size:24px;color:var(--ac)}header p{margin:4px 0 0;opacity:.8}
+main{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 8px;opacity:.7}h2:first-child{margin-top:0}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+button{font:inherit;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+button[aria-pressed=true],button:hover{background:var(--ac);color:var(--acf);border-color:var(--ac)}button:focus-visible,input:focus-visible{outline:3px solid var(--ac);outline-offset:2px}
+.stage{border-radius:14px;min-height:360px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;margin:auto;transition:background .3s;overflow:hidden}
+.stage.mobile{max-width:375px;border:8px solid #111;border-radius:30px}
+#frame{width:300px;max-width:100%}svg{width:100%;height:auto;display:block;overflow:visible}
+#status{margin:8px 0 0;min-height:24px;text-align:center;font-weight:600;color:#213570}.stage.dk #status{color:#e8eefc}
+label{display:flex;gap:8px;align-items:center;margin:6px 0}input[type=range]{flex:1}
+#log{list-style:none;margin:0;padding:0;font:12px ui-monospace,monospace;opacity:.85}#log li{padding:2px 0}
+details{margin-top:12px}code{font-size:12px}
+
+/* Keep the original control design; allow the stage to fit small screens. */
+main{grid-template-columns:repeat(2,minmax(0,1fr))}.card{min-width:0}
+.stage{width:100%;min-height:378px}#frame{flex:none}#luu{overflow:visible}
+#status{font-size:14px;max-width:100%;line-height:1.5}
+input[type=range]{min-width:0}button{touch-action:manipulation}
+@media(max-width:720px){main{grid-template-columns:minmax(0,1fr)}header,main,footer{padding:12px}.stage{padding:12px;min-height:332px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.stage{transition:none}}
+</style></head><body>
+<header><h1>LUUJAAA · Mascot Studio V2</h1><p>Luu, satu karakter dengan 18 pose. Pilih pose atau coba responsnya lewat event aplikasi.</p></header>
+<main>
+<section class="card"><div id="stage" class="stage" style="background:linear-gradient(#eaf2ff,#dce8ff)"><div id="frame">
+<svg id="luu" xmlns="http://www.w3.org/2000/svg" viewBox="-28 -22 356 376" role="img" aria-labelledby="luuTitle luuDesc">
+  <title id="luuTitle">Luu · sapi kecil LUUJAAA</title>
+  <desc id="luuDesc">Maskot sapi putih dengan bercak cokelat gelap dan bandana biru bermotif mahkota.</desc>
+  <defs>
+    <!-- Outline the ALPHA UNION of the torso, limbs and feet, never each part. -->
+    <filter id="outlineUnion" x="-35%" y="-50%" width="170%" height="200%" color-interpolation-filters="sRGB">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="1.65" result="expanded"/>
+      <feFlood flood-color="#2E2A29" result="ink"/>
+      <feComposite in="ink" in2="expanded" operator="in" result="edge"/>
+      <feMerge><feMergeNode in="edge"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="characterTone" x="-30%" y="-35%" width="160%" height="175%" color-interpolation-filters="sRGB">
+      <feColorMatrix id="grayAmount" type="saturate" values="1"/>
+    </filter>
+    <clipPath id="bodyClip"><path id="bodyClipPath"/></clipPath>
+    <clipPath id="legClipL"><path id="legClipPathL"/></clipPath>
+    <clipPath id="legClipR"><path id="legClipPathR"/></clipPath>
+    <clipPath id="armClipL"><path id="armClipPathL"/></clipPath>
+    <clipPath id="armClipR"><path id="armClipPathR"/></clipPath>
+    <clipPath id="headClip"><path d="M150 70C199 68 231 91 235 126C239 166 207 190 150 190C95 190 61 168 64 131C66 97 99 73 150 70Z"/></clipPath>
+  </defs>
+  <ellipse id="shadow" cx="150" cy="319" rx="73" ry="7" fill="#2E2A29" opacity=".10"/>
+  <g id="groundProps" stroke="#2E2A29" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round">
+    <g id="p_mount" opacity="0">
+      <path d="M51 326L86 309L103 296Q109 291 116 292H181Q189 292 196 298L216 305L257 326Z" fill="#CFD8E7"/>
+      <path d="M115 294L143 308L159 298L202 326H113L132 308L103 298Z" fill="#B6C4D9" stroke="none"/>
+      <path d="M52 326H258" fill="none"/>
+    </g>
+    <g id="p_pillow" opacity="0" transform="translate(12 0)">
+      <path d="M14 293Q8 282 20 278Q52 265 104 280Q120 277 123 290L115 316Q80 328 21 318Q9 317 15 306Z" fill="#EDF1F8"/>
+      <path d="M24 313Q65 321 105 312" stroke="#D9E1EE" fill="none" stroke-width="2"/>
+    </g>
+  </g>
+  <g id="root" filter="url(#characterTone)" stroke="#2E2A29" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+    <g id="bodyRig">
+      <g id="tail">
+        <path id="tailStem" d="M202 270Q230 290 240 269" fill="none" stroke="#2E2A29" stroke-width="6"/>
+        <path id="tailTip" d="M240 270C228 264 233 249 242 247C252 253 252 266 240 270Z" fill="#2E2A29" stroke-width="2"/>
+      </g>
+      <g id="silhouette" filter="url(#outlineUnion)" stroke="none" fill="#FFFDF9">
+        <g id="armLb"><path id="armLbf"/></g><g id="armRb"><path id="armRbf"/></g>
+        <g id="legL"><path id="legLf"/><ellipse id="hoofL" fill="#2E2A29" clip-path="url(#legClipL)"/></g>
+        <g id="legR"><path id="legRf"/><ellipse id="hoofR" fill="#2E2A29" clip-path="url(#legClipR)"/></g>
+        <g id="body"><path id="bodyFill"/><g clip-path="url(#bodyClip)">
+          <path d="M191 208C215 210 223 243 207 270C193 280 181 258 186 243C190 232 182 219 191 208Z" fill="#2E2A29"/>
+          <path d="M103 276C107 266 119 270 119 281Q115 291 103 287Z" fill="#2E2A29"/>
+        </g></g>
+        <g id="backHooves" fill="#2E2A29"><ellipse id="handBackL" clip-path="url(#armClipL)"/><ellipse id="handBackR" clip-path="url(#armClipR)"/></g>
+      </g>
+      <g id="band">
+        <path d="M104 183Q150 199 196 183L161 224Q150 235 139 224Z" fill="#213570"/>
+        <path d="M109 188Q150 201 191 188" fill="none" stroke="#FFFDF9" stroke-opacity=".13" stroke-width="2"/>
+        <path d="M196 189Q211 187 210 196Q207 202 198 198Q210 202 206 207Q200 210 191 199" fill="#213570" stroke-width="2.8"/>
+        <path id="crown" d="M140 215L139 204L145 208L150 200L155 208L161 204L160 215Z" fill="#FFFDF9" stroke="none"/>
+      </g>
+    </g>
+    <g id="head" fill="#FFFDF9">
+      <g id="earL"><path d="M78 100C53 92 32 108 23 127C18 140 32 149 49 140L78 124Z" fill="#2E2A29"/><path d="M30 130Q52 129 68 112Q62 134 42 139Q30 141 30 130Z" fill="#F8BDBD" stroke="none"/></g>
+      <g id="earR"><path d="M222 100C247 92 268 108 277 127C282 140 268 149 251 140L222 124Z" fill="#2E2A29"/><path d="M270 130Q248 129 232 112Q238 134 258 139Q270 141 270 130Z" fill="#F8BDBD" stroke="none"/></g>
+      <path d="M100 84C87 75 91 53 101 45Q109 42 109 55Q109 66 120 74Z" fill="#B8875A" stroke-width="2.8"/>
+      <path d="M200 84C213 75 209 53 199 45Q191 42 191 55Q191 66 180 74Z" fill="#B8875A" stroke-width="2.8"/>
+      <path d="M150 70C199 68 231 91 235 126C239 166 207 190 150 190C95 190 61 168 64 131C66 97 99 73 150 70Z"/>
+      <g clip-path="url(#headClip)" stroke="none">
+        <path d="M62 96Q87 65 126 72C130 85 117 92 112 106C105 124 84 127 66 118Z" fill="#2E2A29"/>
+        <path d="M173 69Q213 69 233 103Q237 111 235 118C209 119 184 105 177 91Q172 81 173 69Z" fill="#2E2A29"/>
+        <path d="M69 153Q91 189 151 185Q207 184 232 153Q224 194 150 198Q74 194 69 153Z" fill="#2E2A29" opacity=".035"/>
+      </g>
+      <g id="cheeks" fill="#F8BDBD" opacity=".72" stroke="none"><ellipse cx="88" cy="158" rx="10.5" ry="8"/><ellipse cx="212" cy="158" rx="10.5" ry="8"/></g>
+      <ellipse cx="150" cy="165" rx="34" ry="22" fill="#F8BDBD" stroke="none"/>
+      <g fill="#C98288" stroke="none"><ellipse cx="138" cy="158" rx="3.2" ry="2.5"/><ellipse cx="162" cy="158" rx="3.2" ry="2.5"/></g>
+      <g id="gaze" stroke="none">
+        <g id="eyeL"><path id="eyePathL" fill="#2E2A29"/><circle id="highlightL" fill="#FFFDF9" r="3"/></g>
+        <g id="eyeR"><path id="eyePathR" fill="#2E2A29"/><circle id="highlightR" fill="#FFFDF9" r="3"/></g>
+      </g>
+      <path id="browL" d="M104 110Q110 106 116 109" fill="none" stroke-width="2.7" opacity="0"/>
+      <path id="browR" d="M184 109Q190 106 196 110" fill="none" stroke-width="2.7" opacity="0"/>
+      <g id="mouth"><path id="mouthLine" fill="none" stroke-width="2.8"/><path id="mouthOpen" fill="#A94E5A" stroke="none"/><path id="tongue" fill="#EB8896" stroke="none"/></g>
+    </g>
+    <g id="heldProps" fill="none" stroke-width="2.8">
+      <g id="p_lock" opacity="0">
+        <path d="M130 239V226A20 20 0 0 1 170 226V239" stroke="#2E2A29" stroke-width="9"/>
+        <path d="M130 239V226A20 20 0 0 1 170 226V239" stroke="#C5CEDB" stroke-width="3.5"/>
+        <rect x="119" y="235" width="62" height="59" rx="10" fill="#F6D9AB"/>
+        <path d="M125 244Q150 238 175 244" stroke="#FFFDF9" stroke-opacity=".5" stroke-width="2"/>
+        <path d="M150 251A6 6 0 0 0 146 262L144 275H156L154 262A6 6 0 0 0 150 251Z" fill="#2E2A29" stroke="none"/>
+      </g>
+      <g id="p_book" opacity="0">
+        <path d="M73 284Q111 272 150 283Q188 272 226 284L235 313Q190 303 150 315Q110 303 65 313Z" fill="#B8875A"/>
+        <path d="M78 281Q112 272 150 283Q189 272 222 281L228 307Q187 298 150 310Q112 298 72 307Z" fill="#FFFDF9"/>
+        <path d="M150 283V310" stroke-width="2"/>
+        <path d="M88 288Q113 283 137 289M84 296Q112 290 137 297M163 289Q188 283 211 288M163 297Q188 290 214 296" stroke="#D7C6B1" stroke-width="1.5"/>
+      </g>
+      <g id="p_flag" opacity="0">
+        <path d="M230 170V291" stroke-width="4"/>
+        <path id="flagCloth" d="M232 173Q252 180 279 173L273 208Q251 216 232 207Z" fill="#213570"/>
+        <path d="M246 198L245 187L250 191L255 184L259 191L265 188L263 199Z" fill="#FFFDF9" stroke="none"/>
+        <circle cx="230" cy="169" r="3" fill="#2E2A29" stroke="none"/>
+      </g>
+    </g>
+    <!-- Foreground arm fills share the same paths; only distal contours are inked. -->
+    <g id="frontArms" fill="#FFFDF9" stroke-width="3">
+      <g id="armL" opacity="0"><path id="armLf" stroke="none"/><path id="armLs" fill="none"/><ellipse id="handFrontL" fill="#2E2A29" stroke="none" clip-path="url(#armClipL)"/></g>
+      <g id="armR" opacity="0"><path id="armRf" stroke="none"/><path id="armRs" fill="none"/><ellipse id="handFrontR" fill="#2E2A29" stroke="none" clip-path="url(#armClipR)"/></g>
+    </g>
+    <g id="p_pen" opacity="0" stroke-width="2.5"><path d="M0 -18V16" stroke="#2E2A29" stroke-width="7"/><path d="M0 -17V12" stroke="#213570" stroke-width="4"/><path d="M0 12V18" stroke="#B8875A" stroke-width="3"/></g>
+    <g id="p_laptop" opacity="0" stroke-width="2.8">
+      <path d="M78 248H174Q180 248 181 255L190 303H85L72 256Q70 248 78 248Z" fill="#BDC8DA"/>
+      <path d="M79 254H175" fill="none" stroke="#FFFDF9" stroke-opacity=".7" stroke-width="2"/>
+      <path d="M137 281L134 268L141 272L146 264L151 272L158 269L158 282Z" fill="#FFFDF9" stroke="none"/>
+      <path d="M83 303H223Q227 312 219 314H86Q80 313 83 303Z" fill="#A5B3C9"/>
+    </g>
+  </g>
+  <g id="p_blanket" opacity="0" stroke="#2E2A29" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    <path id="blanketCloth" d="M100 306Q137 257 178 252C223 244 264 267 275 299Q279 317 259 321Q196 333 105 322Q88 321 100 306Z" fill="#213570"/>
+    <path d="M102 312Q137 269 176 259" fill="none" stroke="#647AAD" stroke-width="6"/>
+    <path d="M184 291L182 277L189 282L196 272L202 282L209 277L207 292Z" fill="#FFFDF9" stroke="none"/>
+  </g>
+  <g id="effects" stroke-linecap="round" stroke-linejoin="round">
+    <g id="p_q" opacity="0" fill="#213570"><path d="M247 74C244 62 262 60 265 70C268 79 257 80 257 88" fill="none" stroke="#213570" stroke-width="5"/><circle cx="257" cy="99" r="2.7"/></g>
+    <g id="p_spark" opacity="0" fill="none" stroke="#DAB36D" stroke-width="4.5"><path d="M65 71L59 63M75 59L72 48M234 64L240 54M246 78L257 73"/></g>
+    <g id="p_wave" opacity="0" stroke="#7A94CC" stroke-width="3.5" fill="none"><path d="M252 165Q260 175 256 186M263 160Q275 176 268 192"/></g>
+    <g id="p_battery" opacity="0" stroke="#213570" stroke-width="2.8" fill="#FFFDF9">
+      <rect x="253" y="238" width="27" height="48" rx="6"/><path d="M261 238V233H272V238" fill="#213570"/>
+      <rect x="258" y="259" width="17" height="21" rx="2" fill="#DDE5F4" stroke="none"/>
+      <path d="M269 245L260 261H268L264 273L274 256H267Z" fill="#213570" stroke="none"/>
+      <path d="M244 251L238 247M245 269L239 273" fill="none" stroke="#DAB36D"/>
+    </g>
+    <g id="p_heart" opacity="0" fill="#E98C99"><path d="M240 74C232 66 218 73 224 85Q229 95 240 100Q252 94 256 84C261 72 247 67 240 74Z"/></g>
+    <g id="p_zzz" opacity="0" stroke="#6D88BF" stroke-width="3.2" fill="none"><path d="M175 188H187L175 201H187M199 163H214L199 179H214M228 131H245L228 150H245"/></g>
+    <g id="p_puff" opacity="0" stroke="#B5BECF" stroke-width="2" fill="#E8ECF3"><path d="M32 278Q22 278 24 270Q19 264 26 260Q29 252 36 258Q44 254 46 262Q53 268 45 273Q43 283 35 278Z"/></g>
+    <g id="p_lines" opacity="0" stroke="#929DAD" stroke-width="3" fill="none"><path d="M217 50V64M227 47V66M237 51V63"/></g>
+    <g id="p_swirl" opacity="0" stroke="#6C6562" stroke-width="2.8" fill="none"><path d="M133 31C112 29 135 13 158 20C184 27 150 39 132 35C112 31 141 24 162 31C180 38 151 44 140 41C126 37 157 34 164 40Q174 45 147 48Q143 51 151 54"/></g>
+    <g id="dots" opacity="0" fill="#213570"><circle cx="133" cy="41" r="3.5"/><circle cx="150" cy="41" r="3.5"/><circle cx="167" cy="41" r="3.5"/></g>
+    <g id="p_conf" opacity="0">
+      <path d="M40 80L45 87M65 39L60 46M250 47L255 54M276 105L269 110M30 204L36 200M268 236L274 242M56 277L49 281M222 27L218 36" fill="none" stroke-width="6" stroke="#F6D9AB"/>
+      <path d="M35 133L39 125M91 30L96 36M263 160L271 164M226 303L231 297" fill="none" stroke-width="6" stroke="#7A94CC"/>
+      <path d="M17 180L22 186M283 197L279 204M127 18L131 25M248 280L254 284" fill="none" stroke-width="6" stroke="#F8BDBD"/>
+    </g>
+  </g>
+</svg>
+</div><p id="status" aria-live="polite"></p></div></section>
+<section class="card">
+<h2>States</h2><div class="row" id="states"><button data-s="idle">Idle</button><button data-s="thinking">Thinking</button><button data-s="waiting">Waiting</button><button data-s="error">Error</button><button data-p="happy">Happy</button><button data-p="success">Success</button></div>
+<h2>Pose sheet</h2><div class="row" id="poses"><button data-pose="p_happy">Happy</button><button data-pose="p_excited">Excited</button><button data-pose="p_waving">Waving</button><button data-pose="p_surprised">Surprised</button><button data-pose="thinking">Thinking</button><button data-pose="p_confused">Confused</button><button data-pose="p_focused">Focused</button><button data-pose="p_working">Happy Working</button><button data-pose="p_meditating">Meditating</button><button data-pose="p_recharging">Recharging</button><button data-pose="p_locked">Locked</button><button data-pose="p_goal">Goal / Achievement</button><button data-pose="p_lowenergy">Low Energy</button><button data-pose="p_drained">Drained</button><button data-pose="p_burnedout">Burned Out</button><button data-pose="p_sleeping">Sleeping</button><button data-pose="p_content">Happy / Content</button><button data-pose="p_celebrating">Celebrating</button></div><h2>App event simulator</h2><div class="row"><button data-e="app:open">App opened</button><button data-e="cart:add">Add to cart</button><button data-e="reco:start">Ask recommendation</button><button data-e="order:place">Place order</button></div>
+<label><input type="checkbox" id="fail"> Make the next order request fail</label>
+<h2>View</h2><label>Speed <input type="range" id="spd" min=".25" max="2" step=".05" value="1"></label><label>Size <input type="range" id="siz" min="160" max="420" value="300"></label>
+<div class="row" id="bgs"><button data-bg="linear-gradient(#eaf2ff,#dce8ff)">Sky</button><button data-bg="#ffffff">White</button><button data-bg="#FFF4DE">Cream</button><button data-bg="#213570" data-dk="1">Brand blue</button><button data-bg="#0e1424" data-dk="1">Night</button></div>
+<div class="row" style="margin-top:8px"><button id="pz" aria-pressed="false">Pause</button><button id="rm" aria-pressed="false">Reduced motion</button><button id="mb" aria-pressed="false">Mobile viewport</button></div>
+<h2>Event log</h2><ul id="log"></ul>
+<details><summary>Docs and self-check</summary>
+<p id="test"></p><p><code>M.setBase('thinking')</code> memilih pose. <code>M.play('happy')</code> menjalankan respons sekali, lalu kembali ke pose sebelumnya. Tombol Success adalah preview; hanya <code>emit('order:confirmed')</code> yang menandai pesanan dikonfirmasi. Event <code>app:open</code>, <code>cart:add</code>, <code>reco:start</code>, <code>reco:done</code>, <code>order:place</code>, <code>order:pending</code>, dan <code>request:failed</code> tetap didukung.</p>
+<p>Pause menghentikan gerakan dan waktu simulator. Reduced motion mengikuti pengaturan perangkat dan dapat diaktifkan lewat tombol. Tidak ada koneksi jaringan atau dependensi eksternal.</p></details>
+</section></main>
+<footer>Reference: LUUJAAA mascot guide. Palette: #FFFDF9 · #2E2A29 · #213570 · #F8BDBD · #F6D9AB · #B8875A.</footer>
+<script>
+'use strict';
+(() => {
+  const $ = id => document.getElementById(id);
+  const all = selector => [...document.querySelectorAll(selector)];
+  const owns = (object,key) => Object.prototype.hasOwnProperty.call(object,key);
+  const PI = Math.PI, sin = Math.sin;
+  const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+  const mix = (a, b, t) => a + (b - a) * t;
+  const smooth = t => { t = clamp(t); return t * t * (3 - 2 * t); };
+  const n = v => (+v.toFixed(3));
+  const attr = (el, name, value) => {
+    value = String(value);
+    if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+  };
+  const transform = (el, value) => attr(el, 'transform', value);
+  const path = (el, value) => attr(el, 'd', value);
+  const opacity = (el, value) => attr(el, 'opacity', n(clamp(value)));
+  const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+  const PROPS = 'mount pillow lock book flag pen laptop blanket q spark wave battery heart zzz puff lines swirl conf'.split(' ');
+  const propNodes = Object.fromEntries(PROPS.map(key => [key, $('p_' + key)]));
+  const propWeights = Object.fromEntries(PROPS.map(key => [key, 0]));
+  const handheld = new Set(['lock', 'book', 'pen', 'flag', 'laptop']);
+  const D = Object.freeze({
+    x:0, y:0, sx:1, sy:1, lean:0, head:0, hx:0, hy:0, earL:0, earR:0,
+    tail:0, sit:0, sleep:0, lX:98, lY:251, rX:202, rY:251,
+    bendL:-5, bendR:5, frontL:0, frontR:0, legL:0, legR:0,
+    eye:1, wide:1, wink:0, closedCurve:-7, gazeX:0, gazeY:0,
+    smile:.85, open:0, round:0, brows:0, browL:0, browR:0, browY:0, gray:0, burn:0, dots:0
+  });
+  const numericKeys = Object.keys(D);
+  const cur = {...D};
+  let time = 0, simulationTime = 0, speed = 1, paused = false, rmUser = false;
+  let raf = null, last = 0, suspended = false, disposed = false;
+  const reduced = () => rmUser || motionQuery.matches;
+  const jobs = new Map();
+  const schedule = (key, seconds, callback) => jobs.set(key, {at:simulationTime + seconds, callback});
+  const cancel = (...keys) => keys.forEach(key => jobs.delete(key));
+
+  // A continuous jump has anticipation, a flight arc and a damped landing.
+  function jump(t, period, height) {
+    const u = ((t % period) + period) % period;
+    if (u < .15) {
+      const k = smooth(u / .15);
+      return {y:0, sy:1 - .055*k, sx:1 + .035*k};
+    }
+    if (u < .71) {
+      const k = (u - .15) / .56, lift = sin(PI*k);
+      return {y:-height*lift, sy:1 + .035*lift, sx:1 - .02*lift};
+    }
+    if (u < 1.03) {
+      const k = (u - .71) / .32, settle = sin(PI*k) * Math.exp(-3*k);
+      return {y:0, sy:1 - .07*settle, sx:1 + .045*settle};
+    }
+    return {y:0, sy:1, sx:1};
+  }
+  function pose(spec) {
+    return t => ({...D, sy:1 + .006*sin(t*1.8),
+      tail:5*sin(t*1.3), earL:sin(t*.7), earR:-sin(t*.8), props:[],
+      ...(typeof spec === 'function' ? spec(t) : spec)});
+  }
+  const HELD = {
+    idle:pose(t => ({head:.6*sin(t*.55), gazeX:1.1*sin(t*.35)})),
+    thinking:pose(t => ({head:7, gazeX:2.5, gazeY:-3.5, eye:.88,
+      rX:145, rY:199, bendR:-12, frontR:1, lY:256,
+      brows:.7, browL:-5, browR:8, smile:-.12, props:['q']})),
+    waiting:pose(t => ({head:sin(t*.6), gazeX:2*sin(t*.8), dots:1, tail:3*sin(t)})),
+    error:pose(t => ({head:-5, eye:.7, smile:-.65, earL:-7, earR:7,
+      brows:.8, browL:-10, browR:10, hy:3,
+      x:t < .5 ? sin(t*24)*2.5*(1-t/.5) : 0})),
+    p_happy:pose({open:.7, smile:1, earL:3, earR:-3}),
+    p_excited:pose(t => ({...jump(t,1.95,13), lX:74, lY:201,
+      rX:226, rY:201, bendL:-8, bendR:8, eye:0, open:1, smile:1,
+      earL:4, earR:-4, legR:3, props:['spark']})),
+    p_waving:pose(t => ({rX:230 + 3*sin(t*6), rY:180 + 4*sin(t*6),
+      bendR:8, head:-4, wink:1, open:.65, props:['wave']})),
+    p_surprised:pose({lX:118, lY:218, rX:182, rY:218,
+      bendL:0, bendR:0, frontL:1, frontR:1, eye:1, wide:1.19,
+      smile:0, open:.8, round:1, brows:1, browY:-6, earL:5, earR:-5,
+      sy:1.02, props:['spark']}),
+    p_confused:pose(t => ({head:-7 + .5*sin(t), gazeX:3, gazeY:-1,
+      eye:.9, smile:-.5, brows:.85, browL:-6, browR:11, props:['q']})),
+    p_focused:pose(t => ({sit:.8, head:2.5, gazeY:2, eye:.86,
+      lX:119, lY:271, rX:195, rY:281, frontL:1, frontR:1,
+      bendL:4, bendR:-2, smile:0, brows:.55, browL:8, browR:-8,
+      props:['laptop']})),
+    p_working:pose(t => ({sit:.75, head:2, eye:.1, smile:1, open:.45,
+      lX:106, lY:274, rX:178 + 1.8*sin(t*5), rY:264 + 1.2*sin(t*10),
+      frontL:1, frontR:1, bendL:-2, bendR:1, props:['book','pen']})),
+    p_meditating:pose(t => ({sit:1, eye:0, closedCurve:5, smile:.45,
+      lX:98, lY:275, rX:202, rY:275, frontL:1, frontR:1,
+      sy:1+.009*sin(t*1.2), tail:0})),
+    p_recharging:pose(t => ({sit:.9, eye:0, closedCurve:5, smile:.45,
+      lX:100, lY:274, rX:200, rY:274, frontL:1, frontR:1,
+      sy:1+.007*sin(t*1.2), props:['battery']})),
+    p_locked:pose({lX:120, lY:251, rX:180, rY:251, frontL:1, frontR:1,
+      bendL:-7, bendR:7, eye:.95, smile:-.2, brows:.35,
+      browL:-5, browR:5, props:['lock']}),
+    p_goal:pose(t => ({y:-18, lean:-4, head:3, legL:7, rX:230, rY:225,
+      bendR:7, frontR:1, lX:99, lY:229, bendL:-3, wink:1, open:.8,
+      props:['mount','flag','spark']})),
+    p_lowenergy:pose(t => ({sy:.965, hy:5, head:6, eye:.43, smile:-.6,
+      lX:101, lY:265, rX:199, rY:265, earL:-8, earR:8, tail:-6,
+      brows:.55, browL:-8, browR:8, props:['puff']})),
+    p_drained:pose(t => ({sy:.96, hy:7, head:7, eye:.15, smile:-.85,
+      closedCurve:5, lX:100, lY:268, rX:200, rY:268, earL:-11, earR:11,
+      gray:1, tail:-9, brows:.65, browL:-11, browR:11, props:['lines','puff']})),
+    p_burnedout:pose(t => ({sy:.97, hy:5, eye:.36, smile:-.85,
+      lX:99, lY:266, rX:201, rY:266, earL:-8, earR:8,
+      brows:.6, browL:-10, browR:10, burn:.58, tail:-4, props:['swirl']})),
+    p_sleeping:pose(t => ({sleep:1, eye:0, closedCurve:5, smile:.65,
+      lX:110, lY:249, rX:190, rY:253, tail:-5,
+      sy:1+.005*sin(t*1.2), props:['pillow','blanket','zzz']})),
+    p_content:pose(t => ({sit:.95, head:3, eye:0, smile:1,
+      lX:139, lY:242, rX:161, rY:242, bendL:-9, bendR:9,
+      frontL:1, frontR:1, props:['heart']})),
+    p_celebrating:pose(t => ({...jump(t,1.5,28), lX:68, lY:195,
+      rX:232, rY:195, bendL:-9, bendR:9, eye:0, open:1,
+      smile:1, earL:6, earR:-6, legL:2, legR:7, props:['conf','spark']}))
+  };
+  const SHOT = {
+    happy:{duration:1.4, sample:t => ({...HELD.p_excited(t), ...jump(t,10,16), props:[]})},
+    success:{duration:2.7, sample:t => ({...HELD.p_celebrating(t), ...jump(t,1.5,29), props:['conf','spark']})}
+  };
+  const CAP = {
+    idle:'Eh, udah dateng!', thinking:'Hmm… ada yang enak di sini?',
+    waiting:'Bentar ya, lagi disiapin.', error:'Waduh, belum berhasil. Coba lagi, yuk.',
+    happy:'Wah, menggoda banget!', success:'Yeay! Pesananmu dikonfirmasi!'
+  };
+  let orderBusy = false, orderStatus = 'idle', uiContext = 'preview';
+  const M = {
+    base:'idle', baseT:0, shot:null, shotT:0,
+    setBase(name, options = {}) {
+      if (!owns(HELD,name)) return false;
+      this.base = name;
+      this.baseT = 0;
+      this.shot = null;
+      this.shotT = 0;
+      uiContext = options.source || 'preview';
+      label(); refresh();
+      return true;
+    },
+    play(name, options = {}) {
+      if (!owns(SHOT,name)) return false;
+      if (this.shot && this.shot.name === 'success' && name !== 'success') return false;
+      const source = options.source || 'preview';
+      if (name === 'success' && source === 'event' && orderStatus !== 'confirmed') return false;
+      this.shot = {name, source, ...SHOT[name]}; this.shotT = 0;
+      uiContext = source;
+      label(); refresh();
+      return true;
+    }
+  };
+  function label() {
+    all('[data-pose]').forEach(b => attr(b,'aria-pressed',b.dataset.pose === M.base && !M.shot));
+    all('[data-s]').forEach(b => attr(b,'aria-pressed',b.dataset.s === M.base && !M.shot));
+    all('[data-p]').forEach(b => attr(b,'aria-pressed',!!M.shot && b.dataset.p === M.shot.name));
+    const key = M.shot ? M.shot.name : M.base;
+    const button = all('[data-pose]').find(b => b.dataset.pose === key);
+    const name = button ? button.textContent : key[0].toUpperCase() + key.slice(1);
+    $('status').textContent = uiContext === 'preview' ? 'Preview · ' + name : (CAP[key] || name);
+    $('luuTitle').textContent = 'Luu · ' + name;
+  }
+
+  // Stable, tapered quadratic ribbons, with a true circular distal cap.
+  // The outline filter sees their UNION with the body, so the shoulder has no seam.
+  function armD(side, c) {
+    const left = side === 'L';
+    const A = [left ? 111 : 189, 211+c.sit*8];
+    const B = [c[left ? 'lX':'rX'], c[left ? 'lY':'rY']];
+    const delta = [B[0]-A[0], B[1]-A[1]];
+    const len = Math.hypot(...delta) || 1;
+    const normal = [-delta[1]/len, delta[0]/len];
+    const bend = c[left ? 'bendL':'bendR'];
+    const C = [(A[0]+B[0])/2 + normal[0]*bend, (A[1]+B[1])/2 + normal[1]*bend];
+    const norm = (x,y) => {const d=Math.hypot(x,y)||1; return [-y/d,x/d];};
+    const N0=norm(C[0]-A[0],C[1]-A[1]), N1=norm(B[0]-C[0],B[1]-C[1]);
+    const rootW=12.5, r=10.2;
+    const offset=(p,k,w) => [p[0]+k[0]*w,p[1]+k[1]*w];
+    const p0=offset(A,N0,rootW), p1=offset(C,normal,11.5), p2=offset(B,N1,r);
+    const q0=offset(A,N0,-rootW),q1=offset(C,normal,-11.5),q2=offset(B,N1,-r);
+    const pt=p=>n(p[0])+' '+n(p[1]);
+    const cap=`A${r} ${r} 0 0 0 ${pt(q2)}`;
+    const full=`M${pt(p0)}Q${pt(p1)} ${pt(p2)}${cap}Q${pt(q1)} ${pt(q0)}Z`;
+    const trim=(a,b,d,t=.38)=>[
+      [(1-t)*(1-t)*a[0]+2*t*(1-t)*b[0]+t*t*d[0],(1-t)*(1-t)*a[1]+2*t*(1-t)*b[1]+t*t*d[1]],
+      [mix(b[0],d[0],t),mix(b[1],d[1],t)]
+    ];
+    const [ps,pc]=trim(p0,p1,p2),[qs,qc]=trim(q0,q1,q2);
+    const contour=`M${pt(ps)}Q${pt(pc)} ${pt(p2)}${cap}Q${pt(qc)} ${pt(qs)}`;
+    const tangent=[N1[1],-N1[0]];
+    return {full,contour,x:B[0]+tangent[0]*4.5,y:B[1]+tangent[1]*4.5,
+      angle:Math.atan2(tangent[1],tangent[0])*180/PI-90};
+  }
+  function arm(side, c) {
+    const shape=armD(side,c);
+    for(const key of ['arm'+side+'bf','arm'+side+'f','armClipPath'+side]) path($(key),shape.full);
+    path($('arm'+side+'s'),shape.contour);
+    for(const name of ['handBack'+side,'handFront'+side]) {
+      const el=$(name); attr(el,'cx',n(shape.x));attr(el,'cy',n(shape.y));
+      attr(el,'rx',14);attr(el,'ry',10.5);
+      transform(el,`rotate(${n(shape.angle)} ${n(shape.x)} ${n(shape.y)})`);
+    }
+    opacity($('arm'+side),c['front'+side]);
+  }
+  function leg(side,c) {
+    const sign=side==='L'?-1:1, hip=150+sign*27, y=300-c['leg'+side];
+    // Mirror BOTH endpoint paths before interpolation. Opposite winding would
+    // collapse the right leg halfway between standing and sitting.
+    const base=123;
+    const standing=[base-15,267,base-18,277,base-16,y-8,base-16,y,
+      base-16,y+16,base+16,y+16,base+16,y,
+      base+16,y-8,base+18,277,base+15,267,base+7,265,base-7,265,base-15,267];
+    const seated=[113,267,94,273,85,290,98,302,112,315,135,316,147,304,
+      155,292,134,279,132,269,125,266,119,266,113,267];
+    if(side==='R')for(let i=0;i<seated.length;i+=2){seated[i]=300-seated[i];standing[i]=300-standing[i];}
+    const p=standing.map((v,i)=>n(mix(v,seated[i],c.sit)));
+    const d=`M${p[0]} ${p[1]}C${p.slice(2,8).join(' ')}C${p.slice(8,14).join(' ')}C${p.slice(14,20).join(' ')}C${p.slice(20,26).join(' ')}Z`;
+    path($('leg'+side+'f'),d);path($('legClipPath'+side),d);
+    const hoof=$('hoof'+side);attr(hoof,'cx',n(mix(hip,150+sign*13,c.sit)));attr(hoof,'cy',n(mix(y+10,305,c.sit)));
+    attr(hoof,'rx',n(mix(17,14,c.sit)));attr(hoof,'ry',n(mix(9,10.5,c.sit)));
+  }
+  function eye(side,c,blink) {
+    const cx=side==='L'?113:187, cy=132;
+    const open=clamp(c.eye*blink*(side==='R'?1-c.wink:1));
+    const rx=8.4*c.wide, ry=11.7*open;
+    const curve=c.closedCurve*(1-open);
+    const upper=cy-ry*1.333+curve*1.333-(1-open)*1.6;
+    const lower=cy+ry*1.333+curve*1.333+(1-open)*1.6;
+    path($('eyePath'+side),`M${n(cx-rx)} ${cy}C${n(cx-rx)} ${n(upper)} ${n(cx+rx)} ${n(upper)} ${n(cx+rx)} ${cy}C${n(cx+rx)} ${n(lower)} ${n(cx-rx)} ${n(lower)} ${n(cx-rx)} ${cy}Z`);
+    const glint=$('highlight'+side);attr(glint,'cx',cx+2.8);attr(glint,'cy',n(cy-4.3*open));
+    attr(glint,'r',n(2.9*open));opacity(glint,smooth((open-.38)/.45));
+  }
+  function mouth(c) {
+    const a=clamp(c.open), width=mix(9,14,a), h=mix(.5,17,a);
+    path($('mouthLine'),`M141 173Q150 ${n(173+c.smile*8)} 159 173`);
+    opacity($('mouthLine'),1-smooth(a*3));
+    const top=171, mid=top+h*.85, end=top+h;
+    const w=width*mix(1,.55,c.round),start=top+c.round*h*.35,upper=top+mix(3,-h*.3,c.round);
+    path($('mouthOpen'),`M${n(150-w)} ${n(start)}C${n(150-w)} ${n(upper)} ${n(150+w)} ${n(upper)} ${n(150+w)} ${n(start)}C${n(150+w)} ${n(mid)} ${n(150+w*.35)} ${n(end)} 150 ${n(end)}C${n(150-w*.35)} ${n(end)} ${n(150-w)} ${n(mid)} ${n(150-w)} ${n(start)}Z`);
+    opacity($('mouthOpen'),smooth(a*3));
+    path($('tongue'),`M${n(150-w*.6)} ${n(top+h*.78)}Q150 ${n(top+h*.38)} ${n(150+w*.6)} ${n(top+h*.78)}Q150 ${n(top+h*1.12)} ${n(150-w*.6)} ${n(top+h*.78)}Z`);
+    opacity($('tongue'),smooth(a*3)*(1-c.round));
+  }
+  function draw(staticFrame=false) {
+    const c=cur;
+    const still=reduced()||staticFrame;
+    let blink=1;
+    if(!still) {
+      const phase=time%4.6;
+      if(phase>3.8 && phase<3.98) blink=1-sin((phase-3.8)/.18*PI);
+    }
+    transform($('root'),`translate(${n(c.x)} ${n(c.y)}) translate(150 315) rotate(${n(c.lean)}) scale(${n(c.sx)} ${n(c.sy)}) translate(-150 -315)`);
+    const bodyTransform=`translate(${n(c.sleep*35)} ${n(c.sleep*10)}) rotate(${n(c.sleep*-64)} 150 255)`;
+    transform($('bodyRig'),bodyTransform);transform($('frontArms'),bodyTransform);
+    transform($('heldProps'),bodyTransform);transform($('p_laptop'),bodyTransform);
+    transform($('p_pen'),bodyTransform+` translate(${n(c.rX+1)} ${n(c.rY+2)}) rotate(25)`);
+    transform($('head'),`translate(${n(c.hx-c.sleep*28)} ${n(c.hy+c.sit*8+c.sleep*100)}) rotate(${n(c.head-c.sleep*13)} 150 184)`);
+    transform($('earL'),`rotate(${n(c.earL)} 77 110)`);
+    transform($('earR'),`rotate(${n(c.earR)} 223 110)`);
+    transform($('tail'),`rotate(${n(c.tail+c.sleep*180)} 202 270)`);
+    transform($('band'),`translate(0 ${n(c.sit*8)}) rotate(${n(c.lean*.17 + (still?0:sin(time*1.8)*.35))} 150 187)`);
+    const bottom=290-c.sit*4;
+    const top=184+c.sit*8,neck=197+c.sit*8;
+    const trunk=`M109 ${n(top)}C91 ${n(neck)} 87 235 94 266C97 282 111 ${n(bottom)} 150 ${n(bottom)}C189 ${n(bottom)} 203 282 206 266C213 235 209 ${n(neck)} 191 ${n(top)}Q150 ${n(top-8)} 109 ${n(top)}Z`;
+    path($('bodyFill'),trunk);path($('bodyClipPath'),trunk);
+    leg('L',c);leg('R',c);arm('L',c);arm('R',c);
+    const milk=[255,253,249].map((v,i)=>Math.round(mix(v,[248,189,189][i],c.burn)));
+    for(const id of ['silhouette','head','frontArms'])attr($(id),'fill',`rgb(${milk.join(',')})`);
+    attr($('grayAmount'),'values',n(1-c.gray));
+    transform($('gaze'),`translate(${n(c.gazeX)} ${n(c.gazeY)})`);
+    eye('L',c,blink);eye('R',c,blink);mouth(c);
+    for(const side of ['L','R']) {
+      opacity($('brow'+side),c.brows);
+      transform($('brow'+side),`translate(0 ${n(c.browY)}) rotate(${n(c['brow'+side])} ${side==='L'?110:190} 109)`);
+    }
+    const jumpScale=clamp(1+c.y/130,.6,1);
+    attr($('shadow'),'rx',n(73*jumpScale+16*c.sleep));
+    opacity($('shadow'),.1*clamp(1+c.y/80,.4,1));
+    for(const key of PROPS) opacity(propNodes[key],propWeights[key]);
+    opacity($('dots'),c.dots);
+    [...$('dots').children].forEach((el,i)=>opacity(el,still?.8:.28+.72*Math.max(0,sin(time*3-i*.8))));
+    transform($('p_q'),`translate(${n(c.hx*.25)} ${n(c.hy*.5+c.y*.5)})`);
+    transform($('p_spark'),`translate(0 ${n(c.y*.35)})`);
+    transform($('p_heart'),`translate(0 ${n(still?0:2*sin(time*1.6))})`);
+    transform($('p_zzz'),`translate(0 ${n(still?0:1.7*sin(time*1.2))})`);
+    transform($('p_conf'),`translate(0 ${n(still?0:5*sin(time*2.8))})`);
+    transform($('p_wave'),`translate(${n((c.rX-230)*.35)} ${n((c.rY-180)*.35)})`);
+    if(!still && propWeights.flag>.001) {
+      const w=1.8*sin(time*2.8);
+      path($('flagCloth'),`M232 173Q252 ${n(180+w)} 279 ${n(173+w)}L273 ${n(208+w)}Q251 ${n(216+w)} 232 207Z`);
+    } else path($('flagCloth'),'M232 173Q252 180 279 173L273 208Q251 216 232 207Z');
+  }
+  function target() {
+    const t=reduced()?0:M.baseT;
+    return M.shot ? M.shot.sample(reduced()?.95:M.shotT) : HELD[M.base](t);
+  }
+  function blend(dt,snap=false) {
+    const goal=target(), instant=snap||reduced();
+    const k=instant?1:1-Math.exp(-dt*13);
+    let changed=false;
+    for(const key of numericKeys) {
+      const before=cur[key];
+      cur[key]=mix(before,goal[key],k);
+      if(Math.abs(cur[key]-goal[key])<.0001)cur[key]=goal[key];
+      if(Math.abs(before-cur[key])>.0001)changed=true;
+    }
+    const active=new Set(goal.props);
+    const blocking=PROPS.some(key=>handheld.has(key)&&!active.has(key)&&propWeights[key]>.06);
+    for(const key of PROPS) {
+      let aim=active.has(key)?1:0;
+      if(!instant&&blocking&&handheld.has(key)&&active.has(key))aim=0;
+      if(!instant&&key==='blanket'&&cur.sleep<.5)aim=0;
+      const before=propWeights[key];
+      propWeights[key]=mix(before,aim,instant?1:1-Math.exp(-dt*14));
+      if(Math.abs(propWeights[key]-aim)<.001)propWeights[key]=aim;
+      if(Math.abs(before-propWeights[key])>.0001)changed=true;
+    }
+    return changed;
+  }
+  function update(dt) {
+    simulationTime+=dt;
+    time+=dt*speed; M.baseT+=dt*speed;
+    for(const [key,job] of [...jobs])if(simulationTime>=job.at){jobs.delete(key);job.callback();}
+    if(M.shot) {
+      M.shotT+=dt*speed;
+      if(M.shotT>=M.shot.duration){M.shot=null;M.shotT=0;label();}
+    }
+    const changed=blend(dt);draw();
+    return changed;
+  }
+  function tick(now) {
+    raf=null;
+    if(paused||suspended||disposed||document.hidden)return;
+    const dt=last?Math.min(.05,Math.max(0,(now-last)/1000)):1/60;
+    last=now;
+    const moving=update(dt);
+    if(!reduced()||moving||jobs.size||M.shot)wake();
+  }
+  function wake() {
+    if(raf===null&&!paused&&!suspended&&!disposed&&!document.hidden)raf=requestAnimationFrame(tick);
+  }
+  function stopFrame() { if(raf!==null)cancelAnimationFrame(raf);raf=null;last=0; }
+  function refresh() {
+    if(paused||reduced()){blend(0,true);draw(true);}
+    wake();
+  }
+  function log(type) {
+    const li=document.createElement('li');
+    li.textContent=new Date().toLocaleTimeString([], {hour12:false})+'  '+type;
+    $('log').prepend(li);
+    while($('log').children.length>6)$('log').lastChild.remove();
+  }
+  function emit(type) {
+    if(!owns(events,type))return false;
+    log(type); events[type](); wake();return true;
+  }
+  const events={
+    'app:open':()=>{if(!orderBusy){cancel('reco','error');M.setBase('idle',{source:'event'});}},
+    'cart:add':()=>M.play('happy',{source:'event'}),
+    'reco:start':()=>{
+      if(orderBusy)return;
+      cancel('reco','error');M.setBase('thinking',{source:'event'});
+      schedule('reco',2.2,()=>emit('reco:done'));
+    },
+    'reco:done':()=>{cancel('reco');if(!orderBusy&&M.base==='thinking')M.setBase('idle',{source:'event'});},
+    'order:pending':()=>{cancel('reco','error');orderBusy=true;orderStatus='pending';M.setBase('waiting',{source:'event'});},
+    'order:confirmed':()=>{
+      cancel('order','reco','error');orderBusy=false;orderStatus='confirmed';
+      M.setBase('idle',{source:'event'});M.play('success',{source:'event'});
+    },
+    'request:failed':()=>{
+      cancel('order','reco','error');orderBusy=false;orderStatus='failed';
+      M.setBase('error',{source:'event'});
+      schedule('error',3.5,()=>{if(M.base==='error')M.setBase('idle',{source:'event'});});
+    },
+    'order:place':()=>{
+      cancel('order','reco','error');
+      const fail=$('fail').checked;$('fail').checked=false;
+      emit('order:pending');
+      schedule('order',1.6,()=>emit(fail?'request:failed':'order:confirmed'));
+    }
+  };
+
+  all('[data-pose]').forEach(b=>b.addEventListener('click',()=>M.setBase(b.dataset.pose)));
+  all('[data-s]').forEach(b=>b.addEventListener('click',()=>M.setBase(b.dataset.s)));
+  all('[data-p]').forEach(b=>b.addEventListener('click',()=>M.play(b.dataset.p)));
+  all('[data-e]').forEach(b=>b.addEventListener('click',()=>emit(b.dataset.e)));
+  all('[data-bg]').forEach(b=>b.addEventListener('click',()=>{
+    $('stage').style.background=b.dataset.bg;
+    $('stage').classList.toggle('dk',!!b.dataset.dk);
+    all('[data-bg]').forEach(v=>attr(v,'aria-pressed',v===b));
+  }));
+  $('spd').addEventListener('input',e=>{speed=Number(e.target.value);});
+  $('siz').addEventListener('input',e=>{$('frame').style.width=e.target.value+'px';});
+  $('pz').addEventListener('click',()=>{
+    paused=!paused;attr($('pz'),'aria-pressed',paused);$('pz').textContent=paused?'Play':'Pause';
+    if(paused)stopFrame();else{last=0;wake();}
+  });
+  $('rm').addEventListener('click',()=>{
+    rmUser=!rmUser;attr($('rm'),'aria-pressed',rmUser);refresh();
+  });
+  $('mb').addEventListener('click',()=>{
+    const on=!$('stage').classList.contains('mobile');
+    $('stage').classList.toggle('mobile',on);attr($('mb'),'aria-pressed',on);
+  });
+  const motionChanged=()=>{last=0;refresh();};
+  if(motionQuery.addEventListener)motionQuery.addEventListener('change',motionChanged);
+  else motionQuery.addListener(motionChanged);
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden)stopFrame();else{last=0;wake();}
+  });
+  window.addEventListener('pagehide',()=>{suspended=true;stopFrame();});
+  window.addEventListener('pageshow',()=>{suspended=false;last=0;wake();});
+
+  function selfCheck() {
+    const ids=all('[id]').map(el=>el.id);
+    const results=[
+      ['Rig, wajah, dan properti tersedia', ['root','head','body','band','legL','legR','armL','armR',...PROPS.map(k=>'p_'+k)].every($)],
+      ['18 pose terhubung',all('[data-pose]').length===18&&all('[data-pose]').every(b=>owns(HELD,b.dataset.pose))],
+      ['Tidak ada ID duplikat',ids.length===new Set(ids).size],
+      ['Sampel geometri valid',Object.values(HELD).every(fn=>[0,.5,1.5,4].every(t=>{
+        const c=fn(t);return numericKeys.every(k=>Number.isFinite(c[k]))&&['L','R'].every(s=>!armD(s,c).full.includes('NaN'));
+      }))]
+    ];
+    $('test').replaceChildren(...results.flatMap(([name,ok])=>[
+      document.createTextNode((ok?'✓ ':'✗ ')+name),document.createElement('br')
+    ]));
+    return results;
+  }
+  window.M=M;window.emit=emit;
+  window.LuuStudio=Object.freeze({
+    version:'2.0.0',
+    poses:Object.freeze(all('[data-pose]').map(b=>({id:b.dataset.pose,name:b.textContent}))),
+    inspect:()=>({base:M.base,shot:M.shot?M.shot.name:null,source:uiContext,paused,
+      reduced:reduced(),speed,time,simulationTime,orderBusy,orderStatus,
+      pendingJobs:jobs.size,frameActive:raf!==null,numeric:{...cur},props:{...propWeights}}),
+    // Deterministic render hook used for the supplied sheet and browser QA.
+    seek(name,seconds=0){
+      if(!owns(HELD,name))return false;
+      paused=true;stopFrame();jobs.clear();orderBusy=false;orderStatus='idle';
+      M.setBase(name);time=Number(seconds)||0;M.baseT=time;blend(0,true);draw(true);
+      attr($('pz'),'aria-pressed',true);$('pz').textContent='Play';return true;
+    },
+    advance(seconds){
+      let rest=clamp(Number(seconds)||0,0,60);
+      while(rest>0){const dt=Math.min(rest,1/60);update(dt);rest-=dt;}
+      return this.inspect();
+    },
+    exportSVG:()=>new XMLSerializer().serializeToString($('luu')),
+    selfCheck,
+    destroy(){disposed=true;stopFrame();jobs.clear();}
+  });
+  const requested=new URLSearchParams(location.search).get('pose');
+  if(requested&&owns(HELD,requested))M.base=requested;
+  selfCheck();blend(0,true);label();draw(true);wake();
+})();
+
+</script></body></html>

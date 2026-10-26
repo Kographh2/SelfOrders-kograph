@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   ShoppingBag, CheckCircle, Clock, XCircle,
@@ -17,6 +18,7 @@ interface OrderRow {
   created_at: string;
 }
 interface Stats {
+  summary: {total:number;pending:number;completed:number;cancelled:number;revenue:number;preparing:number;ready:number;uncertain:number;lowStock:number;shiftDifferences:number};
   orders:    OrderRow[];
   menuItems: { id: string; is_available: boolean }[];
   tables:    { id: string; is_active: boolean }[];
@@ -83,14 +85,8 @@ export default function DashboardPage() {
   }, [fetchStats]);
 
   const orders      = stats?.orders ?? [];
-  const today       = new Date().toDateString();
-  const todayOrders = orders.filter(o => new Date(o.created_at).toDateString() === today);
-  const pending     = orders.filter(o => o.status === "pending").length;
-  const completed   = todayOrders.filter(o => o.status === "completed").length;
-  const cancelled   = todayOrders.filter(o => o.status === "cancelled").length;
-  const revenue     = todayOrders
-    .filter(o => o.payment_status === "paid")
-    .reduce((s, o) => s + Number(o.total_amount), 0);
+  const summary=stats?.summary;
+  const pending=summary?.pending || 0,completed=summary?.completed || 0,cancelled=summary?.cancelled || 0,revenue=Number(summary?.revenue || 0);
   const availableItems = (stats?.menuItems ?? []).filter(m => m.is_available).length;
   const activeTables   = (stats?.tables   ?? []).filter(t => t.is_active).length;
 
@@ -122,6 +118,12 @@ export default function DashboardPage() {
           </div>
         ) : (
           <StaggerContainer className="space-y-6">
+            <section aria-label="Perlu ditangani" className="rounded-2xl border border-navy-100 bg-white p-5"><h2 className="mb-4 font-semibold">Perlu ditangani</h2><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[
+              ["/dashboard/kitchen","Pesanan di dapur",(summary?.preparing||0)+(summary?.ready||0)],
+              ["/dashboard/orders","Periksa pembayaran",summary?.uncertain||0],
+              ["/dashboard/inventory","Bahan stok rendah",summary?.lowStock||0],
+              ["/dashboard/reports","Selisih shift · 7 hari",summary?.shiftDifferences||0],
+            ].map(([href,label,count])=><Link key={String(href)} href={String(href)} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-4 text-sm"><span>{label}</span><strong className="text-lg">{count}</strong></Link>)}</div></section>
             <StaggerItem>
               <div className="bg-navy-900 text-bone-50 rounded-2xl p-6">
                 <p className="text-navy-300 text-sm mb-1">Pendapatan Hari Ini</p>
@@ -137,7 +139,7 @@ export default function DashboardPage() {
                 <StatCard label="Pesanan Pending"  value={pending}       sub="Butuh konfirmasi"  icon={Clock}          color="bg-amber-500" />
                 <StatCard label="Selesai Hari Ini" value={completed}     sub="Pesanan completed" icon={CheckCircle}    color="bg-green-600" />
                 <StatCard label="Dibatalkan"        value={cancelled}     sub="Hari ini"          icon={XCircle}        color="bg-red-500"   />
-                <StatCard label="Total Pesanan"     value={orders.length} sub="Semua waktu"       icon={ShoppingBag}    color="bg-navy-700"  />
+                <StatCard label="Total Pesanan"     value={summary?.total || 0} sub="Semua waktu"       icon={ShoppingBag}    color="bg-navy-700"  />
               </div>
             </StaggerItem>
 

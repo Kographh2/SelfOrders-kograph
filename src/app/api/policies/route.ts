@@ -11,7 +11,7 @@ const types = ["privacy", "terms", "refund"] as const;
 export async function GET(request: NextRequest) {
   const storeId = request.nextUrl.searchParams.get("storeId") || "";
   const user = await getAuthUser(request);
-  const includeDraft = request.nextUrl.searchParams.get("includeDraft") === "1" && isOwnerOrAdmin(user) && (!storeId || hasStoreAccess(user, storeId));
+  const includeDraft = request.nextUrl.searchParams.get("includeDraft") === "1" && isOwnerOrAdmin(user) && (storeId ? hasStoreAccess(user, storeId) : user?.role === "owner");
   const [globalDocs, localDocs, globalFaq, localFaq] = await Promise.all([
     supabaseAdmin.from("store_documents").select("id,store_id,document_type,version,title,content,status,published_at,created_at").is("store_id", null).order("version", { ascending: false }),
     storeId ? supabaseAdmin.from("store_documents").select("id,store_id,document_type,version,title,content,status,published_at,created_at").eq("store_id", storeId).order("version", { ascending: false }) : Promise.resolve({ data: [], error: null }),
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   ]);
   const error = globalDocs.error || localDocs.error || globalFaq.error || localFaq.error;
   if (error) return fail(error.message, 500);
-  let documents = [...(localDocs.data || []), ...(globalDocs.data || [])].filter(row => includeDraft || row.status === "published");
+  let documents = [...(localDocs.data || []), ...(globalDocs.data || [])].filter(row => row.status === "published" || (includeDraft && (row.store_id !== null || user?.role === "owner")));
   documents = documents.filter((row, index, all) => all.findIndex(candidate => candidate.document_type === row.document_type && candidate.store_id === row.store_id) === index);
   const faqs = [...(localFaq.data || []), ...(globalFaq.data || [])];
   return NextResponse.json({ data: { documents, faqs } });
@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
 
   if (!isOwnerOrAdmin(user)) return fail("Akses owner/admin diperlukan", 403);
   const storeId = String(body.storeId || user?.storeId || "") || null;
+  if (!storeId && user?.role !== "owner") return fail("Dokumen global hanya dapat diubah owner",403);
   if (storeId && !hasStoreAccess(user, storeId)) return fail("Cabang tidak valid", 403);
 
   if (body.action === "document") {

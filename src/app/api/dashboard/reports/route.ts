@@ -1,3 +1,4 @@
+import { readPages } from "@/lib/paged-query";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { getAuthUser, hasStoreAccess, isStaff } from "@/lib/auth";
@@ -47,8 +48,9 @@ export async function GET(request: NextRequest) {
   }
   const start = startOfDayInZone(from, timeZone).toISOString();
   const end = startOfDayInZone(shiftDate(to, 1), timeZone).toISOString();
-  const { data: orders, error } = await supabaseAdmin.from("orders").select("id,order_number,total_amount,payment_method,payment_status,created_at,order_items(name_snapshot,quantity,subtotal)").eq("store_id", storeId).gte("created_at", start).lt("created_at", end).order("created_at");
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  let orders: any[];
+  try{orders=await readPages((fromRow,toRow)=>supabaseAdmin.from("orders").select("id,order_number,total_amount,payment_method,payment_status,created_at,order_items(name_snapshot,quantity,subtotal)").eq("store_id",storeId).gte("created_at",start).lt("created_at",end).order("created_at").order("id").range(fromRow,toRow));}
+  catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Laporan belum dapat dimuat"},{status:400});}
   const paid = (orders || []).filter(o => o.payment_status === "paid");
   const products: Record<string, { quantity: number; sales: number }> = {};
   const hours: Record<string, number> = {};
@@ -65,7 +67,9 @@ export async function GET(request: NextRequest) {
       products[itemName].sales += Number(item.subtotal);
     }
   }
-  const { data: shifts } = await supabaseAdmin.from("cashier_shifts").select("id,opening_cash,expected_cash,closing_cash,opened_at,closed_at,cashier_id").eq("store_id", storeId).gte("opened_at", start).lt("opened_at", end).not("closed_at", "is", null);
+  let shifts:any[];
+  try{shifts=await readPages((fromRow,toRow)=>supabaseAdmin.from("cashier_shifts").select("id,opening_cash,expected_cash,closing_cash,opened_at,closed_at,cashier_id").eq("store_id",storeId).gte("opened_at",start).lt("opened_at",end).not("closed_at","is",null).order("opened_at").order("id").range(fromRow,toRow));}
+  catch{return NextResponse.json({error:"Laporan shift belum dapat dimuat. Persempit rentang tanggal."},{status:400});}
   const shiftReports = (shifts || []).map(shift => {
     const expectedCash = Number(shift.expected_cash ?? shift.opening_cash);
     return { ...shift, expected_cash: expectedCash, cash_difference: Number(shift.closing_cash || 0) - expectedCash };

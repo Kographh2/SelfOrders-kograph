@@ -8,6 +8,7 @@ export interface RestaurantAd {
   link_label: string;
   is_active: boolean;
   display_order: number;
+  revision?: number;
 }
 
 export const isUuid = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
@@ -36,4 +37,4 @@ export function validateAd(body: Record<string, unknown>) {
   return { store_id: body.storeId, title, description, image_url: safeAdUrl(body.imageUrl, true), link_url: safeAdUrl(body.linkUrl), link_label: label || "Lihat penawaran", is_active: body.isActive, display_order: order };
 }
 
-export const dismissedAdKey = (ad: Pick<RestaurantAd, "store_id" | "id">) => `${ad.store_id}:${ad.id}`;
+export const dismissedAdKey = (ad: Pick<RestaurantAd, "store_id" | "id" | "revision">) => `${ad.store_id}:${ad.id}${(ad.revision || 1)>1 ? `:v${ad.revision}` : ""}`;

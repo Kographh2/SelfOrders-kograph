@@ -1,3 +1,4 @@
+import { boundedJson, requestBudget, sameOrigin } from "@/lib/request-security";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser, hasStoreAccess, isStaff } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-server";
@@ -17,7 +18,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json().catch(() => ({}));
+  if(!sameOrigin(request))return fail("Origin ditolak",403);
+  const limited=await requestBudget(request,"table-service",15,60);if(limited)return limited;
+  const body = await boundedJson(request,4096).catch(() => ({}));
   const storeId = String(body.storeId || "");
   const tableNumber = Number(body.tableNumber);
   const requestType = String(body.requestType || "");

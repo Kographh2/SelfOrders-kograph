@@ -17,6 +17,7 @@ const MidtransClient = require("midtrans-client") as {  // skipcq: JS-0359
         status_code?: string;
         gross_amount?: string;
         payment_type?: string;
+        refunds?: Array<{ refund_key: string; refund_amount: string; bank_confirmed_at?: string }>;
       }>;
     };
   };

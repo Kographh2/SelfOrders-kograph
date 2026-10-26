@@ -56,14 +56,14 @@ async function fetchJwt(supabaseUid: string, email: string, accessToken: string)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user,      setUser]      = useState<User | null>(getStoredUser);
-  const [token,     setToken]     = useState<string | null>(() => ls(TOKEN_KEY));
+  const [token,     setToken]     = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const saveSession = useCallback((u: User, t: string) => {
     setUser(u);
     setToken(t);
     lsSet(USER_KEY,  JSON.stringify(u));
-    lsSet(TOKEN_KEY, t);
+    lsDel(TOKEN_KEY); // The credential lives in the HttpOnly account cookie.
   }, []);
 
   const clearSession = useCallback(() => {
@@ -74,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    lsDel(TOKEN_KEY);
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === "SIGNED_OUT" || !session?.user) {
@@ -88,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           !ls(TOKEN_KEY)
         ) {
           const result = await fetchJwt(session.user.id, session.user.email ?? "", session.access_token);
-          if (result) saveSession(result.user, result.token);
+          if (result) saveSession(result.user, result.token); else clearSession();
         }
         setIsLoading(false);
       }
@@ -100,12 +101,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // saveSession / clearSession are stable (useCallback with no deps)
   }, [saveSession, clearSession]);
 
+  useEffect(() => {
+    const refresh = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const result = await fetchJwt(session.user.id, session.user.email || "", session.access_token);
+      if (result) saveSession(result.user, result.token); else clearSession();
+    };
+    const timer = setInterval(() => void refresh(), 20 * 60_000);
+    const onFocus=()=>{void refresh();};
+    window.addEventListener("focus",onFocus);
+    return () => {clearInterval(timer);window.removeEventListener("focus",onFocus);};
+  }, [saveSession, clearSession]);
+
   const login = useCallback(async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
     try {
       const trimmed = email.trim().toLowerCase();
       if (!trimmed || !password) throw new Error("Email dan password wajib diisi");
 
+      const cleared = await fetch("/api/auth/sessions", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: "{}" });
+      if (!cleared.ok) throw new Error("Sesi sebelumnya belum bisa ditutup.");
       const { data, error } = await supabase.auth.signInWithPassword({ email: trimmed, password });
       if (error) {
         const msg = error.message.toLowerCase();
@@ -176,8 +192,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [saveSession]);
 
   const logout = useCallback(async (): Promise<void> => {
+    const response = await fetch("/api/auth/sessions", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: "{}" });
+    if (!response.ok) throw new Error("Sesi belum berhasil dicabut. Coba lagi.");
     clearSession();
-    try { await supabase.auth.signOut(); } catch {}
+    await supabase.auth.signOut();
   }, [clearSession]);
 
   // ✅ useMemo: context value only changes when actual values change

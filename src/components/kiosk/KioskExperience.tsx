@@ -1,4 +1,5 @@
 "use client";
+import LuuMascot from "@/components/LuuMascot";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -74,7 +75,15 @@ export default function KioskExperience() {
   const sessionGeneration = useRef(0);
   activeStep.current = step;
   useEffect(() => {
-    document.title = catalog?.store.name ? `${catalog.store.name} · KIOSK` : "Self-Order KIOSK";
+    if (!catalog?.store.name) return;
+    const title = `${catalog.store.name} · KIOSK`;
+    const syncTitle = () => { if (document.title !== title) document.title = title; };
+    // The station is resolved client-side. Keep its title when streamed route
+    // metadata arrives after the catalog, and release ownership on unmount.
+    syncTitle();
+    const observer = new MutationObserver(syncTitle);
+    observer.observe(document.head, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
   }, [catalog?.store.name]);
 
   const load = useCallback(async () => {
@@ -294,7 +303,7 @@ export default function KioskExperience() {
         </section>}
         {step === "payment" && order && <section className={styles.paymentPage}><div className={styles.paymentIcon}><CreditCard size={40} /></div><h1 ref={heading} tabIndex={-1}>{order.payment_status === "pending" ? "Selesaikan pembayaran Anda." : "Pembayaran belum berhasil."}</h1><p className={styles.subtitle}>Pesanan #{String(order.order_number).padStart(3, "0")} · {catalog.store.name}</p><div className={styles.paymentCard}><span>Total pembayaran</span><strong>{money(Number(order.total_amount))}</strong><div className={styles.paymentStatus}><Clock3 size={18} />{order.payment_status === "pending" ? "Menunggu konfirmasi pembayaran" : order.payment_status === "expired" ? "Pembayaran kedaluwarsa" : "Pembayaran gagal / dibatalkan"}</div>{order.payment_status === "pending" && order.status !== "cancelled" && <button className={styles.primary} disabled={busy || !online} onClick={pay}>{busy ? <Loader2 className={styles.spin} /> : <CreditCard size={20} />}Buka pembayaran</button>}<button className={styles.secondary} disabled={busy || !online} onClick={() => void execute(() => refreshOrder(true))}><RefreshCw size={18} />Periksa status</button><p className={styles.finePrint}>Sudah membayar? Jangan membuat pesanan baru. Tunggu konfirmasi atau minta bantuan petugas dengan nomor pesanan di atas.</p></div><button className={styles.back} disabled={busy} onClick={() => setResetPrompt(true)}>Selesai menggunakan KIOSK<ArrowRight size={18} /></button></section>}
         {step === "confirmation" && order && <section className={styles.confirmation}>
-          <div className={styles.confirmationHeading}><CheckCircle2 size={28}/><div><h1 ref={heading} tabIndex={-1}>Pembayaran berhasil</h1><p>Lanjutkan ke ponsel untuk memantau pesanan Anda.</p></div></div>
+          <div className={styles.confirmationHeading}><LuuMascot pose="celebrating" size={100}/><div><h1 ref={heading} tabIndex={-1}>Pembayaran berhasil</h1><p>Lanjutkan ke ponsel untuk memantau pesanan Anda.</p></div></div>
           <div className={styles.confirmationGrid}><div className={styles.ticket}><span>Nomor antrean Anda</span><strong>{String(order.order_number).padStart(3, "0")}</strong><div><ChefHat size={20}/>{statusLabels[order.status] || order.status}</div><p>{catalog.store.name}</p><p>{mode === "dine_in" ? "Makan di sini" : "Bawa pulang"} · {money(Number(order.total_amount))}</p><hr/><p>Saat pesanan siap, nomor ini akan dipanggil oleh petugas.</p></div>
           <KioskHandoff key={order.id} orderId={order.id} onScanned={() => { setHandoffScanned(true); setSeconds(null); setResetPrompt(false); }} onComplete={() => void reset()}/></div>
           {!handoffScanned&&<div className={styles.handoffHelp}><button className={styles.back} onClick={() => setResetPrompt(true)}>Tidak membawa ponsel? Minta bantuan petugas</button><p>Layar berakhir setelah 3 menit tanpa aktivitas. Sentuh layar jika masih memindai.</p></div>}

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { getAuthUser, isOwnerOrAdmin } from "@/lib/auth";
+import { writeAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const storeId = searchParams.get("storeId");
+    if (user.role === "admin" && (!user.storeId || (storeId && storeId !== user.storeId))) return NextResponse.json({ error: "Akses cabang ditolak" }, { status: 403 });
 
     let query = supabaseAdmin
       .from("users")
@@ -51,7 +53,7 @@ export async function DELETE(request: NextRequest) {
 
     const { data: target } = await supabaseAdmin
       .from("users")
-      .select("role")
+      .select("role,store_id,is_active")
       .eq("id", userId)
       .single();
 
@@ -66,6 +68,7 @@ export async function DELETE(request: NextRequest) {
       .eq("id", userId);
     if (error) throw error;
 
+    await writeAudit(user,target.store_id,"user.deactivate","user",userId,{is_active:target.is_active},{is_active:false});
     return NextResponse.json({ message: "User deactivated" }, { status: 200 });
   } catch (error: unknown) {
     return NextResponse.json({ error: "Failed to deactivate user" }, { status: 500 });
@@ -90,7 +93,7 @@ export async function PATCH(request: NextRequest) {
       if (role !== undefined || storeId !== undefined || isActive !== undefined) {
         return NextResponse.json({ error: "Cannot change own role, store, or status" }, { status: 403 });
       }
-      if (!name?.trim()) {
+      if (typeof name!=="string" || !name.trim() || name.trim().length>120) {
         return NextResponse.json({ error: "Name is required" }, { status: 400 });
       }
       const { data, error } = await supabaseAdmin
@@ -104,13 +107,26 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Non-self: must be owner or admin
-    if (!isOwnerOrAdmin(user)) {
+    if (user.role !== "owner") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     // Prevent privilege escalation to owner unless caller is owner
     if (role === "owner" && user.role !== "owner") {
       return NextResponse.json({ error: "Only owners can assign owner role" }, { status: 403 });
+    }
+
+    const { data: target, error: targetError } = await supabaseAdmin.from("users").select("id,role,store_id,is_active,name").eq("id", userId).maybeSingle();
+    if (targetError || !target) return NextResponse.json({ error: "Pengguna tidak ditemukan" }, { status: 404 });
+    if (target.role === "owner" && (role !== undefined || storeId !== undefined || isActive !== undefined)) return NextResponse.json({ error: "Hak dan status owner tidak dapat diubah melalui jalur ini" }, { status: 403 });
+    if (role !== undefined && !["user", "kasir", "admin", "owner"].includes(role)) return NextResponse.json({ error: "Role tidak valid" }, { status: 400 });
+    if (isActive !== undefined && typeof isActive !== "boolean") return NextResponse.json({ error: "Status tidak valid" }, { status: 400 });
+    if (name !== undefined && (typeof name !== "string" || !name.trim() || name.length > 120)) return NextResponse.json({ error: "Nama tidak valid" }, { status: 400 });
+    const nextStore = storeId === undefined ? target.store_id : storeId;
+    if (["kasir", "admin"].includes(role ?? target.role) && !nextStore) return NextResponse.json({ error: "Staf wajib memiliki cabang" }, { status: 400 });
+    if (nextStore) {
+      const { data: store } = await supabaseAdmin.from("stores").select("id").eq("id", nextStore).eq("is_active", true).maybeSingle();
+      if (!store) return NextResponse.json({ error: "Cabang tidak valid" }, { status: 400 });
     }
 
     const updatePayload: Record<string, unknown> = {
@@ -131,6 +147,7 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) throw error;
+    await writeAudit(user, data.store_id, "user.update", "user", userId, target, data);
     return NextResponse.json({ data }, { status: 200 });
   } catch (error: unknown) {
     console.error("Users PATCH error:", error);

@@ -1,6 +1,6 @@
 // Only the self-contained recovery document is cached. Never cache account,
 // order, payment, API, or authenticated page responses.
-const RECOVERY_CACHE = "selforder-recovery-v1";
+const RECOVERY_CACHE = "selforder-recovery-v2-luu-028019d25cad";
 const RECOVERY_URL = "/offline.html";
 
 self.addEventListener("install", event => {
@@ -22,7 +22,7 @@ async function recovery(mode) {
   const cached = await caches.match(RECOVERY_URL, { cacheName: RECOVERY_CACHE });
   if (!cached) return new Response("Koneksi terputus. Sambungkan internet lalu muat ulang halaman.", { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } });
   const html = (await cached.text()).replace('<html lang="id">', `<html lang="id" data-recovery-mode="${mode}">`);
-  return new Response(html, { status: 503, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+  return new Response(html, { status: 503, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-SelfOrder-Recovery": mode } });
 }
 
 self.addEventListener("fetch", event => {

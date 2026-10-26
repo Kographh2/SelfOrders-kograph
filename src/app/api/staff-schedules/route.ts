@@ -13,9 +13,11 @@ export async function GET(request: NextRequest) {
   const from = request.nextUrl.searchParams.get("from") || new Date().toISOString().slice(0, 10);
   const to = request.nextUrl.searchParams.get("to") || new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
   const manager = isOwnerOrAdmin(user);
+  let attendanceQuery = supabaseAdmin.from("staff_attendance").select("*,staff:users!staff_attendance_staff_id_fkey(id,name,email)").eq("store_id", storeId).gte("work_date", from).lte("work_date", to).order("server_timestamp", { ascending: false }).limit(500);
+  if (!manager) attendanceQuery = attendanceQuery.eq("staff_id", user!.userId);
   const [schedules, attendance, users, settings] = await Promise.all([
     supabaseAdmin.from("staff_schedules").select("*,staff:users!staff_schedules_staff_id_fkey(id,name,email,role)").eq("store_id", storeId).gte("work_date", from).lte("work_date", to).order("work_date").order("starts_at"),
-    supabaseAdmin.from("staff_attendance").select("*,staff:users!staff_attendance_staff_id_fkey(id,name,email)").eq("store_id", storeId).gte("work_date", from).lte("work_date", to).order("server_timestamp", { ascending: false }).limit(500),
+    attendanceQuery,
     manager ? supabaseAdmin.from("users").select("id,name,email,role").eq("store_id", storeId).in("role", ["admin", "kasir"]).eq("is_active", true).order("name") : Promise.resolve({ data: [], error: null }),
     manager ? supabaseAdmin.from("store_attendance_settings").select("*").eq("store_id", storeId).maybeSingle() : Promise.resolve({ data: null, error: null }),
   ]);

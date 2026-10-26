@@ -1,71 +1,423 @@
 <!doctype html>
 <html lang="id">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#142b45"><title>Koneksi terputus | SelfOrder</title>
-<style>
-:root{color-scheme:light;--paper:#f5f7fa;--card:#fff;--ink:#142b45;--muted:#5f6e80;--line:#dce4ed;--soft:#edf2f7;--button:#142b45;--button-ink:#fff}
-:root.dark{color-scheme:dark;--paper:#081321;--card:#102136;--ink:#f5f8fc;--muted:#a8b7ca;--line:#293d54;--soft:#1b3048;--button:#edf3fa;--button-ink:#102136}
-*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:520px;margin:auto;padding:max(28px,env(safe-area-inset-top)) 20px max(32px,env(safe-area-inset-bottom))}header{display:flex;align-items:center;justify-content:space-between;margin-bottom:36px;font-size:13px}header strong{font-size:16px;letter-spacing:-.5px}.status{color:var(--muted);display:flex;align-items:center;gap:7px}.status:before{content:"";width:7px;height:7px;background:currentColor;border-radius:50%}.signal{display:grid;place-items:center;width:64px;height:64px;border-radius:20px;background:var(--soft);margin-bottom:20px}h1{font-size:30px;line-height:1.2;letter-spacing:-1px;margin:0 0 14px}p{color:var(--muted);margin:0 0 20px}button,a{font:inherit;-webkit-tap-highlight-color:transparent}button{cursor:pointer}button:focus-visible,a:focus-visible{outline:3px solid #6e96be;outline-offset:4px}.retry{width:100%;min-height:48px;border:0;border-radius:13px;background:var(--button);color:var(--button-ink);font-weight:600}.retry:disabled{opacity:.65;cursor:wait}.feedback{font-size:13px;min-height:24px;margin:10px 0 20px}.game{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px}.game-head{display:flex;align-items:center;justify-content:space-between;gap:12px}h2{font-size:18px;letter-spacing:-.4px;margin:0}.restart{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;min-height:44px;padding:6px 12px;font-size:12px}.game p{font-size:13px;margin:8px 0 16px}.score{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted);margin-bottom:12px}.board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.tile{aspect-ratio:1;min-height:48px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);font-weight:600;font-size:22px;transition:transform .15s,background .15s}.tile:active{transform:scale(.95)}.tile.open{background:var(--card);border-color:var(--ink);font-size:28px}.tile.matched{background:var(--soft);border-style:dashed;opacity:.65}.result{margin:14px 0 0!important;min-height:22px}footer{text-align:center;margin-top:22px;color:var(--muted);font-size:12px}footer a{color:inherit;text-underline-offset:3px}.payment-note{font-size:12px;margin:18px 0 0} @media(max-width:350px){main{padding-inline:16px}h1{font-size:27px}.game{padding:16px}.board{gap:6px}header{margin-bottom:24px}}@media(prefers-reduced-motion:reduce){.tile{transition:none}.tile:active{transform:none}}
-</style>
-</head>
-<body>
-<main>
- <header><strong>SelfOrder</strong><span class="status" id="network">Sedang offline</span></header>
- <div class="signal" aria-hidden="true"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="m3 3 18 18M2 8.8a16 16 0 0 1 3-1.9m4-1.5a16 16 0 0 1 13 3.4M5 12a11 11 0 0 1 3-1.5m5-.5a11 11 0 0 1 6 2M8.5 15.5a5 5 0 0 1 7 0M12 19h.01"/></svg></div>
- <h1 id="heading">Koneksi sedang terputus</h1>
- <p id="description">Periksa Wi-Fi atau data seluler Anda, lalu coba lagi. Sambil menunggu, main sebentar yuk.</p>
- <button class="retry" id="retry" type="button">Coba lagi</button>
- <p class="feedback" id="feedback" role="status" aria-live="polite"></p>
- <section class="game" aria-labelledby="game-title">
-  <div class="game-head"><h2 id="game-title">Pasangkan menunya</h2><button type="button" class="restart" id="restart">Ulangi game</button></div>
-  <p>Buka dua kartu. Temukan 6 pasang yang sama, tanpa batas waktu.</p>
-  <div class="score"><span id="pairs">0 / 6 pasang</span><span id="moves">0 langkah</span></div>
-  <div class="board" id="board" role="group" aria-label="Kartu makanan"></div>
-  <p class="result" id="result" role="status" aria-live="polite">Pilih kartu pertama Anda.</p>
- </section>
- <p class="payment-note">Baru saja membayar? Setelah tersambung, periksa status pesanan sebelum mengulang pembayaran.</p>
- <footer>Game ini tetap bisa dimainkan tanpa internet.<br><a href="/menu" target="_top">Kembali ke menu</a></footer>
-</main>
-<script id="recovery-config" type="application/json">__RECOVERY_CONFIG__</script>
-<script>
-(() => {
- 'use strict';
- const byId = id => document.getElementById(id);
- let config = {};
- try { config = JSON.parse(byId('recovery-config').textContent); } catch {}
- try { const theme = localStorage.getItem('selforder_theme'); document.documentElement.classList.toggle('dark', theme === 'dark' || ((!theme || theme === 'system') && matchMedia('(prefers-color-scheme: dark)').matches)); } catch {}
- const params = new URLSearchParams(location.search);
- const mode = config.mode || document.documentElement.dataset.recoveryMode || (navigator.onLine ? 'error' : 'offline');
- if (mode === 'error') {
-  byId('heading').textContent = 'Ada kendala sementara';
-  byId('description').textContent = 'Halaman belum bisa ditampilkan. Coba muat ulang sebentar lagi, atau main sambil menunggu.';
-  byId('network').textContent = 'Layanan terganggu';
-  document.title = 'Kendala sementara | SelfOrder';
- }
- const connected = () => { byId('network').textContent = 'Jaringan tersedia'; byId('feedback').textContent = 'Jaringan terdeteksi. Tekan Coba lagi saat Anda siap.'; };
- window.addEventListener('online', connected);
- window.addEventListener('offline', () => { byId('network').textContent = 'Sedang offline'; byId('feedback').textContent = 'Koneksi terputus. Game tetap bisa dilanjutkan.'; });
- const safeReturn = () => {
-  try {
-   const fallback = location.pathname.endsWith('/offline.html') || location.pathname === '/offline' || location.protocol === 'about:' ? '/menu' : location.pathname + location.search + location.hash;
-   const url = new URL(config.returnTo || params.get('returnTo') || fallback, location.origin === 'null' ? parent.location.origin : location.origin);
-   if (url.origin !== parent.location.origin || ['/offline','/offline.html'].includes(url.pathname)) return '/menu';
-   return url.pathname + url.search + url.hash;
-  } catch { return '/menu'; }
- };
- byId('retry').addEventListener('click', async () => {
-  const button = byId('retry'); button.disabled = true; button.textContent = 'Memeriksa koneksi…';
-  byId('feedback').textContent = '';
-  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 8000);
-  try {
-   const response = await fetch('/api/connection', { cache: 'no-store', signal: controller.signal });
-   if (!response.ok || (await response.json()).reachable !== true) throw new Error('unavailable');
-   parent.location.assign(safeReturn());
-  } catch {
-   byId('feedback').textContent = navigator.onLine ? 'Aplikasi belum bisa dihubungi. Silakan coba lagi sebentar lagi.' : 'Masih offline. Periksa koneksi Anda, lalu coba lagi.';
-  } finally { clearTimeout(timeout); button.disabled = false; button.textContent = 'Coba lagi'; }
- });
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#142b45"><title>Koneksi terputus | Luujaaa</title><style>:root{color-scheme:light;--paper:#f7f8fa;--card:#fff;--ink:#142b45;--muted:#627184;--line:#dfe6ee;--soft:#edf2f7;--button:#142b45;--button-ink:#fff}
+:root.dark{color-scheme:dark;--paper:#0c1828;--card:#122338;--ink:#f4f7fb;--muted:#a8b7ca;--line:#304258;--soft:#1c3046;--button:#f4f7fb;--button-ink:#142b45}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}main{max-width:980px;margin:auto;padding:max(24px,env(safe-area-inset-top)) 24px max(32px,env(safe-area-inset-bottom))}header{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;margin-bottom:28px}header strong{font-size:17px}#network{color:var(--muted)}.hero{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center;min-height:370px}.mascot{width:280px;max-width:100%;margin:auto;filter:grayscale(1)}svg{display:block;width:100%;height:auto;overflow:visible}.eyebrow{font-size:12px;font-weight:600;color:var(--muted);margin:0 0 10px}h1{font-size:clamp(28px,4vw,38px);line-height:1.15;letter-spacing:-1px;margin:0 0 16px}p{color:var(--muted);margin:0 0 18px}button,summary{font:inherit;touch-action:manipulation;cursor:pointer}button:focus-visible,summary:focus-visible{outline:3px solid #7a94cc;outline-offset:4px}.retry{min-height:48px;border:0;border-radius:12px;background:var(--button);color:var(--button-ink);padding:12px 28px;font-weight:600;width:100%}.retry:disabled{opacity:.6;cursor:wait}.feedback{font-size:13px;min-height:42px;margin:10px 0 0}.support{max-width:620px;margin:18px auto 0;border-top:1px solid var(--line)}details{border-bottom:1px solid var(--line)}summary{padding:18px 2px;min-height:48px;font-weight:600}details>div{padding:0 2px 22px}.note{font-size:12px;line-height:1.6}.draft{padding-left:20px}.draft li{margin:10px 0}.draft small{display:block;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}.draft strong{overflow-wrap:anywhere}h2{font-size:18px;margin:0}#draft-updated{font-size:12px}.game-head,.score{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.score{font-size:12px;color:var(--muted)}.restart{min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);padding:8px 12px}.board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.tile{aspect-ratio:1;min-height:44px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font-size:22px}.tile.open{background:var(--soft)}.tile.matched{border-style:dashed;opacity:.65}.result{font-size:13px;margin-top:14px}footer{max-width:620px;margin:24px auto;color:var(--muted);font-size:12px}.empty-draft{font-size:13px;padding:16px 2px;margin:0}#last-check{font-size:11px}.tile:active{transform:scale(.97)}@media(max-width:640px){main{padding-inline:20px}header{margin-bottom:14px}.hero{grid-template-columns:1fr;gap:12px;min-height:0}.mascot{width:176px}.hero-copy{text-align:center}h1{font-size:29px}.hero-copy>p{max-width:370px;margin-inline:auto}.support{margin-top:20px}}@media(max-width:350px){main{padding-inline:16px}h1{font-size:27px}.mascot{width:148px}}@media(prefers-reduced-motion:reduce){.tile:active{transform:none}}
+</style></head>
+<body><main>
+<header><strong>Luujaaa</strong><span id="network" aria-live="polite">Koneksi terputus</span></header>
+<section class="hero" aria-labelledby="heading">
+ <div class="mascot" id="mascot" aria-hidden="true"><svg id="luu" xmlns="http://www.w3.org/2000/svg" viewBox="-28 -22 356 376" role="img" aria-labelledby="luuTitle luuDesc" data-luu-part="luu">
+  <title id="luuTitle" data-luu-part="luuTitle">Luu · sapi kecil LUUJAAA</title>
+  <desc id="luuDesc" data-luu-part="luuDesc">Maskot sapi putih dengan bercak cokelat gelap dan bandana biru bermotif mahkota.</desc>
+  <defs>
+    <!-- Outline the ALPHA UNION of the torso, limbs and feet, never each part. -->
+    <filter id="outlineUnion" x="-35%" y="-50%" width="170%" height="200%" color-interpolation-filters="sRGB" data-luu-part="outlineUnion">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="1.65" result="expanded"/>
+      <feFlood flood-color="#2E2A29" result="ink"/>
+      <feComposite in="ink" in2="expanded" operator="in" result="edge"/>
+      <feMerge><feMergeNode in="edge"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="characterTone" x="-30%" y="-35%" width="160%" height="175%" color-interpolation-filters="sRGB" data-luu-part="characterTone">
+      <feColorMatrix id="grayAmount" type="saturate" values="0" data-luu-part="grayAmount"/>
+    </filter>
+    <clipPath id="bodyClip" data-luu-part="bodyClip"><path id="bodyClipPath" d="M109 184C91 197 87 235 94 266C97 282 111 290 150 290C189 290 203 282 206 266C213 235 209 197 191 184Q150 176 109 184Z" data-luu-part="bodyClipPath"/></clipPath>
+    <clipPath id="legClipL" data-luu-part="legClipL"><path id="legClipPathL" d="M108 267C105 277 107 292 107 300C107 316 139 316 139 300C139 292 141 277 138 267C130 265 116 265 108 267Z" data-luu-part="legClipPathL"/></clipPath>
+    <clipPath id="legClipR" data-luu-part="legClipR"><path id="legClipPathR" d="M192 267C195 277 193 292 193 300C193 316 161 316 161 300C161 292 159 277 162 267C170 265 184 265 192 267Z" data-luu-part="legClipPathR"/></clipPath>
+    <clipPath id="armClipL" data-luu-part="armClipL"><path id="armClipPathL" d="M98.503 210.749Q99.118 238.268 90.458 264.395A10.2 10.2 0 0 0 109.542 271.605Q121.701 242.627 123.497 211.251Z" data-luu-part="armClipPathL"/></clipPath>
+    <clipPath id="armClipR" data-luu-part="armClipR"><path id="armClipPathR" d="M176.503 211.251Q178.299 242.627 190.458 271.605A10.2 10.2 0 0 0 209.542 264.395Q200.882 238.268 201.497 210.749Z" data-luu-part="armClipPathR"/></clipPath>
+    <clipPath id="headClip" data-luu-part="headClip"><path d="M150 70C199 68 231 91 235 126C239 166 207 190 150 190C95 190 61 168 64 131C66 97 99 73 150 70Z"/></clipPath>
+  </defs>
+  <ellipse id="shadow" cx="150" cy="319" rx="73" ry="7" fill="#2E2A29" opacity="0.1" data-luu-part="shadow"/>
+  <g id="groundProps" stroke="#2E2A29" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round" data-luu-part="groundProps">
+    <g id="p_mount" opacity="0" data-luu-part="p_mount">
+      <path d="M51 326L86 309L103 296Q109 291 116 292H181Q189 292 196 298L216 305L257 326Z" fill="#CFD8E7"/>
+      <path d="M115 294L143 308L159 298L202 326H113L132 308L103 298Z" fill="#B6C4D9" stroke="none"/>
+      <path d="M52 326H258" fill="none"/>
+    </g>
+    <g id="p_pillow" opacity="0" transform="translate(12 0)" data-luu-part="p_pillow">
+      <path d="M14 293Q8 282 20 278Q52 265 104 280Q120 277 123 290L115 316Q80 328 21 318Q9 317 15 306Z" fill="#EDF1F8"/>
+      <path d="M24 313Q65 321 105 312" stroke="#D9E1EE" fill="none" stroke-width="2"/>
+    </g>
+  </g>
+  <g id="root" filter="url(#characterTone)" stroke="#2E2A29" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 0) translate(150 315) rotate(0) scale(1 0.96) translate(-150 -315)" data-luu-part="root">
+    <g id="bodyRig" transform="translate(0 0) rotate(0 150 255)" data-luu-part="bodyRig">
+      <g id="tail" transform="rotate(-9 202 270)" data-luu-part="tail">
+        <path id="tailStem" d="M202 270Q230 290 240 269" fill="none" stroke="#2E2A29" stroke-width="6" data-luu-part="tailStem"/>
+        <path id="tailTip" d="M240 270C228 264 233 249 242 247C252 253 252 266 240 270Z" fill="#2E2A29" stroke-width="2" data-luu-part="tailTip"/>
+      </g>
+      <g id="silhouette" filter="url(#outlineUnion)" stroke="none" fill="rgb(255,253,249)" data-luu-part="silhouette">
+        <g id="armLb" data-luu-part="armLb"><path id="armLbf" d="M98.503 210.749Q99.118 238.268 90.458 264.395A10.2 10.2 0 0 0 109.542 271.605Q121.701 242.627 123.497 211.251Z" data-luu-part="armLbf"/></g><g id="armRb" data-luu-part="armRb"><path id="armRbf" d="M176.503 211.251Q178.299 242.627 190.458 271.605A10.2 10.2 0 0 0 209.542 264.395Q200.882 238.268 201.497 210.749Z" data-luu-part="armRbf"/></g>
+        <g id="legL" data-luu-part="legL"><path id="legLf" d="M108 267C105 277 107 292 107 300C107 316 139 316 139 300C139 292 141 277 138 267C130 265 116 265 108 267Z" data-luu-part="legLf"/><ellipse id="hoofL" fill="#2E2A29" clip-path="url(#legClipL)" cx="123" cy="310" rx="17" ry="9" data-luu-part="hoofL"/></g>
+        <g id="legR" data-luu-part="legR"><path id="legRf" d="M192 267C195 277 193 292 193 300C193 316 161 316 161 300C161 292 159 277 162 267C170 265 184 265 192 267Z" data-luu-part="legRf"/><ellipse id="hoofR" fill="#2E2A29" clip-path="url(#legClipR)" cx="177" cy="310" rx="17" ry="9" data-luu-part="hoofR"/></g>
+        <g id="body" data-luu-part="body"><path id="bodyFill" d="M109 184C91 197 87 235 94 266C97 282 111 290 150 290C189 290 203 282 206 266C213 235 209 197 191 184Q150 176 109 184Z" data-luu-part="bodyFill"/><g clip-path="url(#bodyClip)">
+          <path d="M191 208C215 210 223 243 207 270C193 280 181 258 186 243C190 232 182 219 191 208Z" fill="#2E2A29"/>
+          <path d="M103 276C107 266 119 270 119 281Q115 291 103 287Z" fill="#2E2A29"/>
+        </g></g>
+        <g id="backHooves" fill="#2E2A29" data-luu-part="backHooves"><ellipse id="handBackL" clip-path="url(#armClipL)" cx="98.41" cy="272.21" rx="14" ry="10.5" transform="rotate(20.697 98.41 272.21)" data-luu-part="handBackL"/><ellipse id="handBackR" clip-path="url(#armClipR)" cx="201.59" cy="272.21" rx="14" ry="10.5" transform="rotate(-20.697 201.59 272.21)" data-luu-part="handBackR"/></g>
+      </g>
+      <g id="band" transform="translate(0 0) rotate(0 150 187)" data-luu-part="band">
+        <path d="M104 183Q150 199 196 183L161 224Q150 235 139 224Z" fill="#213570"/>
+        <path d="M109 188Q150 201 191 188" fill="none" stroke="#FFFDF9" stroke-opacity=".13" stroke-width="2"/>
+        <path d="M196 189Q211 187 210 196Q207 202 198 198Q210 202 206 207Q200 210 191 199" fill="#213570" stroke-width="2.8"/>
+        <path id="crown" d="M140 215L139 204L145 208L150 200L155 208L161 204L160 215Z" fill="#FFFDF9" stroke="none" data-luu-part="crown"/>
+      </g>
+    </g>
+    <g id="head" fill="rgb(255,253,249)" transform="translate(0 7) rotate(7 150 184)" data-luu-part="head">
+      <g id="earL" transform="rotate(-11 77 110)" data-luu-part="earL"><path d="M78 100C53 92 32 108 23 127C18 140 32 149 49 140L78 124Z" fill="#2E2A29"/><path d="M30 130Q52 129 68 112Q62 134 42 139Q30 141 30 130Z" fill="#F8BDBD" stroke="none"/></g>
+      <g id="earR" transform="rotate(11 223 110)" data-luu-part="earR"><path d="M222 100C247 92 268 108 277 127C282 140 268 149 251 140L222 124Z" fill="#2E2A29"/><path d="M270 130Q248 129 232 112Q238 134 258 139Q270 141 270 130Z" fill="#F8BDBD" stroke="none"/></g>
+      <path d="M100 84C87 75 91 53 101 45Q109 42 109 55Q109 66 120 74Z" fill="#B8875A" stroke-width="2.8"/>
+      <path d="M200 84C213 75 209 53 199 45Q191 42 191 55Q191 66 180 74Z" fill="#B8875A" stroke-width="2.8"/>
+      <path d="M150 70C199 68 231 91 235 126C239 166 207 190 150 190C95 190 61 168 64 131C66 97 99 73 150 70Z"/>
+      <g clip-path="url(#headClip)" stroke="none">
+        <path d="M62 96Q87 65 126 72C130 85 117 92 112 106C105 124 84 127 66 118Z" fill="#2E2A29"/>
+        <path d="M173 69Q213 69 233 103Q237 111 235 118C209 119 184 105 177 91Q172 81 173 69Z" fill="#2E2A29"/>
+        <path d="M69 153Q91 189 151 185Q207 184 232 153Q224 194 150 198Q74 194 69 153Z" fill="#2E2A29" opacity=".035"/>
+      </g>
+      <g id="cheeks" fill="#F8BDBD" opacity=".72" stroke="none" data-luu-part="cheeks"><ellipse cx="88" cy="158" rx="10.5" ry="8"/><ellipse cx="212" cy="158" rx="10.5" ry="8"/></g>
+      <ellipse cx="150" cy="165" rx="34" ry="22" fill="#F8BDBD" stroke="none"/>
+      <g fill="#C98288" stroke="none"><ellipse cx="138" cy="158" rx="3.2" ry="2.5"/><ellipse cx="162" cy="158" rx="3.2" ry="2.5"/></g>
+      <g id="gaze" stroke="none" transform="translate(0 0)" data-luu-part="gaze">
+        <g id="eyeL" data-luu-part="eyeL"><path id="eyePathL" fill="#2E2A29" d="M104.6 132C104.6 133.966 121.4 133.966 121.4 132C121.4 141.365 104.6 141.365 104.6 132Z" data-luu-part="eyePathL"/><circle id="highlightL" fill="#FFFDF9" r="0.435" cx="115.8" cy="131.355" opacity="0" data-luu-part="highlightL"/></g>
+        <g id="eyeR" data-luu-part="eyeR"><path id="eyePathR" fill="#2E2A29" d="M178.6 132C178.6 133.966 195.4 133.966 195.4 132C195.4 141.365 178.6 141.365 178.6 132Z" data-luu-part="eyePathR"/><circle id="highlightR" fill="#FFFDF9" r="0.435" cx="189.8" cy="131.355" opacity="0" data-luu-part="highlightR"/></g>
+      </g>
+      <path id="browL" d="M104 110Q110 106 116 109" fill="none" stroke-width="2.7" opacity="0.65" transform="translate(0 0) rotate(-11 110 109)" data-luu-part="browL"/>
+      <path id="browR" d="M184 109Q190 106 196 110" fill="none" stroke-width="2.7" opacity="0.65" transform="translate(0 0) rotate(11 190 109)" data-luu-part="browR"/>
+      <g id="mouth" data-luu-part="mouth"><path id="mouthLine" fill="none" stroke-width="2.8" d="M141 173Q150 166.2 159 173" opacity="1" data-luu-part="mouthLine"/><path id="mouthOpen" fill="#A94E5A" stroke="none" d="M141 171C141 174 159 174 159 171C159 171.425 153.15 171.5 150 171.5C146.85 171.5 141 171.425 141 171Z" opacity="0" data-luu-part="mouthOpen"/><path id="tongue" fill="#EB8896" stroke="none" d="M144.6 171.39Q150 171.19 155.4 171.39Q150 171.56 144.6 171.39Z" opacity="0" data-luu-part="tongue"/></g>
+    </g>
+    <g id="heldProps" fill="none" stroke-width="2.8" transform="translate(0 0) rotate(0 150 255)" data-luu-part="heldProps">
+      <g id="p_lock" opacity="0" data-luu-part="p_lock">
+        <path d="M130 239V226A20 20 0 0 1 170 226V239" stroke="#2E2A29" stroke-width="9"/>
+        <path d="M130 239V226A20 20 0 0 1 170 226V239" stroke="#C5CEDB" stroke-width="3.5"/>
+        <rect x="119" y="235" width="62" height="59" rx="10" fill="#F6D9AB"/>
+        <path d="M125 244Q150 238 175 244" stroke="#FFFDF9" stroke-opacity=".5" stroke-width="2"/>
+        <path d="M150 251A6 6 0 0 0 146 262L144 275H156L154 262A6 6 0 0 0 150 251Z" fill="#2E2A29" stroke="none"/>
+      </g>
+      <g id="p_book" opacity="0" data-luu-part="p_book">
+        <path d="M73 284Q111 272 150 283Q188 272 226 284L235 313Q190 303 150 315Q110 303 65 313Z" fill="#B8875A"/>
+        <path d="M78 281Q112 272 150 283Q189 272 222 281L228 307Q187 298 150 310Q112 298 72 307Z" fill="#FFFDF9"/>
+        <path d="M150 283V310" stroke-width="2"/>
+        <path d="M88 288Q113 283 137 289M84 296Q112 290 137 297M163 289Q188 283 211 288M163 297Q188 290 214 296" stroke="#D7C6B1" stroke-width="1.5"/>
+      </g>
+      <g id="p_flag" opacity="0" data-luu-part="p_flag">
+        <path d="M230 170V291" stroke-width="4"/>
+        <path id="flagCloth" d="M232 173Q252 180 279 173L273 208Q251 216 232 207Z" fill="#213570" data-luu-part="flagCloth"/>
+        <path d="M246 198L245 187L250 191L255 184L259 191L265 188L263 199Z" fill="#FFFDF9" stroke="none"/>
+        <circle cx="230" cy="169" r="3" fill="#2E2A29" stroke="none"/>
+      </g>
+    </g>
+    <!-- Foreground arm fills share the same paths; only distal contours are inked. -->
+    <g id="frontArms" fill="rgb(255,253,249)" stroke-width="3" transform="translate(0 0) rotate(0 150 255)" data-luu-part="frontArms">
+      <g id="armL" opacity="0" data-luu-part="armL"><path id="armLf" stroke="none" d="M98.503 210.749Q99.118 238.268 90.458 264.395A10.2 10.2 0 0 0 109.542 271.605Q121.701 242.627 123.497 211.251Z" data-luu-part="armLf"/><path id="armLs" fill="none" d="M97.631 231.463Q95.827 248.197 90.458 264.395A10.2 10.2 0 0 0 109.542 271.605Q117.081 253.638 120.636 234.75" data-luu-part="armLs"/><ellipse id="handFrontL" fill="#2E2A29" stroke="none" clip-path="url(#armClipL)" cx="98.41" cy="272.21" rx="14" ry="10.5" transform="rotate(20.697 98.41 272.21)" data-luu-part="handFrontL"/></g>
+      <g id="armR" opacity="0" data-luu-part="armR"><path id="armRf" stroke="none" d="M176.503 211.251Q178.299 242.627 190.458 271.605A10.2 10.2 0 0 0 209.542 264.395Q200.882 238.268 201.497 210.749Z" data-luu-part="armRf"/><path id="armRs" fill="none" d="M179.364 234.75Q182.919 253.638 190.458 271.605A10.2 10.2 0 0 0 209.542 264.395Q204.173 248.197 202.369 231.463" data-luu-part="armRs"/><ellipse id="handFrontR" fill="#2E2A29" stroke="none" clip-path="url(#armClipR)" cx="201.59" cy="272.21" rx="14" ry="10.5" transform="rotate(-20.697 201.59 272.21)" data-luu-part="handFrontR"/></g>
+    </g>
+    <g id="p_pen" opacity="0" stroke-width="2.5" transform="translate(0 0) rotate(0 150 255) translate(201 270) rotate(25)" data-luu-part="p_pen"><path d="M0 -18V16" stroke="#2E2A29" stroke-width="7"/><path d="M0 -17V12" stroke="#213570" stroke-width="4"/><path d="M0 12V18" stroke="#B8875A" stroke-width="3"/></g>
+    <g id="p_laptop" opacity="0" stroke-width="2.8" transform="translate(0 0) rotate(0 150 255)" data-luu-part="p_laptop">
+      <path d="M78 248H174Q180 248 181 255L190 303H85L72 256Q70 248 78 248Z" fill="#BDC8DA"/>
+      <path d="M79 254H175" fill="none" stroke="#FFFDF9" stroke-opacity=".7" stroke-width="2"/>
+      <path d="M137 281L134 268L141 272L146 264L151 272L158 269L158 282Z" fill="#FFFDF9" stroke="none"/>
+      <path d="M83 303H223Q227 312 219 314H86Q80 313 83 303Z" fill="#A5B3C9"/>
+    </g>
+  </g>
+  <g id="p_blanket" opacity="0" stroke="#2E2A29" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" data-luu-part="p_blanket">
+    <path id="blanketCloth" d="M100 306Q137 257 178 252C223 244 264 267 275 299Q279 317 259 321Q196 333 105 322Q88 321 100 306Z" fill="#213570" data-luu-part="blanketCloth"/>
+    <path d="M102 312Q137 269 176 259" fill="none" stroke="#647AAD" stroke-width="6"/>
+    <path d="M184 291L182 277L189 282L196 272L202 282L209 277L207 292Z" fill="#FFFDF9" stroke="none"/>
+  </g>
+  <g id="effects" stroke-linecap="round" stroke-linejoin="round" data-luu-part="effects">
+    <g id="p_q" opacity="0" fill="#213570" transform="translate(0 3.5)" data-luu-part="p_q"><path d="M247 74C244 62 262 60 265 70C268 79 257 80 257 88" fill="none" stroke="#213570" stroke-width="5"/><circle cx="257" cy="99" r="2.7"/></g>
+    <g id="p_spark" opacity="0" fill="none" stroke="#DAB36D" stroke-width="4.5" transform="translate(0 0)" data-luu-part="p_spark"><path d="M65 71L59 63M75 59L72 48M234 64L240 54M246 78L257 73"/></g>
+    <g id="p_wave" opacity="0" stroke="#7A94CC" stroke-width="3.5" fill="none" transform="translate(-10.5 30.8)" data-luu-part="p_wave"><path d="M252 165Q260 175 256 186M263 160Q275 176 268 192"/></g>
+    <g id="p_battery" opacity="0" stroke="#213570" stroke-width="2.8" fill="#FFFDF9" data-luu-part="p_battery">
+      <rect x="253" y="238" width="27" height="48" rx="6"/><path d="M261 238V233H272V238" fill="#213570"/>
+      <rect x="258" y="259" width="17" height="21" rx="2" fill="#DDE5F4" stroke="none"/>
+      <path d="M269 245L260 261H268L264 273L274 256H267Z" fill="#213570" stroke="none"/>
+      <path d="M244 251L238 247M245 269L239 273" fill="none" stroke="#DAB36D"/>
+    </g>
+    <g id="p_heart" opacity="0" fill="#E98C99" transform="translate(0 0)" data-luu-part="p_heart"><path d="M240 74C232 66 218 73 224 85Q229 95 240 100Q252 94 256 84C261 72 247 67 240 74Z"/></g>
+    <g id="p_zzz" opacity="0" stroke="#6D88BF" stroke-width="3.2" fill="none" transform="translate(0 0)" data-luu-part="p_zzz"><path d="M175 188H187L175 201H187M199 163H214L199 179H214M228 131H245L228 150H245"/></g>
+    <g id="p_puff" opacity="1" stroke="#B5BECF" stroke-width="2" fill="#E8ECF3" data-luu-part="p_puff"><path d="M32 278Q22 278 24 270Q19 264 26 260Q29 252 36 258Q44 254 46 262Q53 268 45 273Q43 283 35 278Z"/></g>
+    <g id="p_lines" opacity="1" stroke="#929DAD" stroke-width="3" fill="none" data-luu-part="p_lines"><path d="M217 50V64M227 47V66M237 51V63"/></g>
+    <g id="p_swirl" opacity="0" stroke="#6C6562" stroke-width="2.8" fill="none" data-luu-part="p_swirl"><path d="M133 31C112 29 135 13 158 20C184 27 150 39 132 35C112 31 141 24 162 31C180 38 151 44 140 41C126 37 157 34 164 40Q174 45 147 48Q143 51 151 54"/></g>
+    <g id="dots" opacity="0" fill="#213570" data-luu-part="dots"><circle cx="133" cy="41" r="3.5"/><circle cx="150" cy="41" r="3.5"/><circle cx="167" cy="41" r="3.5"/></g>
+    <g id="p_conf" opacity="0" transform="translate(0 0)" data-luu-part="p_conf">
+      <path d="M40 80L45 87M65 39L60 46M250 47L255 54M276 105L269 110M30 204L36 200M268 236L274 242M56 277L49 281M222 27L218 36" fill="none" stroke-width="6" stroke="#F6D9AB"/>
+      <path d="M35 133L39 125M91 30L96 36M263 160L271 164M226 303L231 297" fill="none" stroke-width="6" stroke="#7A94CC"/>
+      <path d="M17 180L22 186M283 197L279 204M127 18L131 25M248 280L254 284" fill="none" stroke-width="6" stroke="#F8BDBD"/>
+    </g>
+  </g>
+</svg></div>
+ <div class="hero-copy"><p class="eyebrow">Kita jeda sebentar</p><h1 id="heading" tabindex="-1">Koneksi lagi terputus</h1><p id="description">Luu ikut kehabisan energi. Coba sambungkan internet untuk melanjutkan.</p>
+ <button type="button" id="retry" class="retry">Coba lagi</button><p id="feedback" class="feedback" role="status" aria-live="polite">Kami akan melanjutkan setelah koneksi siap.</p><span id="last-check"></span></div>
+</section>
+<section class="support" aria-label="Sambil menunggu">
+ <details id="saved" hidden><summary>Lihat draf tersimpan</summary><div><p id="draft-updated"></p><ul id="draft" class="draft"></ul><p class="note">Ini isi keranjang yang tersimpan di perangkat ini, belum pesanan baru. Harga dan ketersediaan akan diperiksa lagi saat tersambung.</p></div></details>
+ <p id="empty-draft" class="empty-draft">Belum ada draf keranjang tersimpan di perangkat ini.</p>
+ <details id="play"><summary>Main sebentar</summary><div><div class="game-head"><h2 id="game-title">Pasangkan menunya</h2><button type="button" id="restart" class="restart">Ulangi game</button></div><p class="note">Temukan enam pasang menu. Santai saja, tidak ada batas waktu.</p><div class="score"><span id="pairs"></span><span id="moves"></span></div><div class="board" id="board" role="group" aria-label="Kartu makanan"></div><p id="result" class="result" role="status"></p></div></details>
+</section><footer>Sudah membayar? Tunggu sampai tersambung lalu periksa status pesanan. Jangan ulangi pembayaran dulu.</footer>
+</main><script id="recovery-config" type="application/json">__RECOVERY_CONFIG__</script><script>// Generated from mascot/LUUJAAA-Mascot-Studio-V2.html. Run node scripts/extract-luu.mjs; do not edit geometry.
+function createLuu(svg, options = {}) {
+  const $ = id => svg.querySelector('[data-luu-part="'+id+'"]');
+  const PI = Math.PI, sin = Math.sin;
+  const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+  const mix = (a, b, t) => a + (b - a) * t;
+  const smooth = t => { t = clamp(t); return t * t * (3 - 2 * t); };
+  const n = v => (+v.toFixed(3));
+  const attr = (el, name, value) => {
+    value = String(value);
+    if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+  };
+  const transform = (el, value) => attr(el, 'transform', value);
+  const path = (el, value) => attr(el, 'd', value);
+  const opacity = (el, value) => attr(el, 'opacity', n(clamp(value)));
+
+  const PROPS = 'mount pillow lock book flag pen laptop blanket q spark wave battery heart zzz puff lines swirl conf'.split(' ');
+  const propNodes = Object.fromEntries(PROPS.map(key => [key, $('p_' + key)]));
+  const propWeights = Object.fromEntries(PROPS.map(key => [key, 0]));
+  const D = Object.freeze({
+    x:0, y:0, sx:1, sy:1, lean:0, head:0, hx:0, hy:0, earL:0, earR:0,
+    tail:0, sit:0, sleep:0, lX:98, lY:251, rX:202, rY:251,
+    bendL:-5, bendR:5, frontL:0, frontR:0, legL:0, legR:0,
+    eye:1, wide:1, wink:0, closedCurve:-7, gazeX:0, gazeY:0,
+    smile:.85, open:0, round:0, brows:0, browL:0, browR:0, browY:0, gray:0, burn:0, dots:0
+  });
+  const numericKeys = Object.keys(D);
+  const cur = {...D};
+
+  let time=0, disposed=false, frame=null, last=0, visible=true;
+  let current=options.pose||'drained';
+  const doc=svg.ownerDocument, win=doc?.defaultView;
+  const media=win?.matchMedia('(prefers-reduced-motion: reduce)');
+  const reduced=()=>Boolean(options.reducedMotion||media?.matches);
+  function jump(t, period, height) {
+    const u = ((t % period) + period) % period;
+    if (u < .15) {
+      const k = smooth(u / .15);
+      return {y:0, sy:1 - .055*k, sx:1 + .035*k};
+    }
+    if (u < .71) {
+      const k = (u - .15) / .56, lift = sin(PI*k);
+      return {y:-height*lift, sy:1 + .035*lift, sx:1 - .02*lift};
+    }
+    if (u < 1.03) {
+      const k = (u - .71) / .32, settle = sin(PI*k) * Math.exp(-3*k);
+      return {y:0, sy:1 - .07*settle, sx:1 + .045*settle};
+    }
+    return {y:0, sy:1, sx:1};
+  }
+  function pose(spec) {
+    return t => ({...D, sy:1 + .006*sin(t*1.8),
+      tail:5*sin(t*1.3), earL:sin(t*.7), earR:-sin(t*.8), props:[],
+      ...(typeof spec === 'function' ? spec(t) : spec)});
+  }
+
+  const HELD={drained:pose(t => ({sy:.96, hy:7, head:7, eye:.15, smile:-.85,
+      closedCurve:5, lX:100, lY:268, rX:200, rY:268, earL:-11, earR:11,
+      gray:1, tail:-9, brows:.65, browL:-11, browR:11, props:['lines','puff']})),
+thinking:pose(t => ({head:7, gazeX:2.5, gazeY:-3.5, eye:.88,
+      rX:145, rY:199, bendR:-12, frontR:1, lY:256,
+      brows:.7, browL:-5, browR:8, smile:-.12, props:['q']})),
+confused:pose(t => ({head:-7 + .5*sin(t), gazeX:3, gazeY:-1,
+      eye:.9, smile:-.5, brows:.85, browL:-6, browR:11, props:['q']})),
+celebrating:pose(t => ({...jump(t,1.5,28), lX:68, lY:195,
+      rX:232, rY:195, bendL:-9, bendR:9, eye:0, open:1,
+      smile:1, earL:6, earR:-6, legL:2, legR:7, props:['conf','spark']}))};
+  function armD(side, c) {
+    const left = side === 'L';
+    const A = [left ? 111 : 189, 211+c.sit*8];
+    const B = [c[left ? 'lX':'rX'], c[left ? 'lY':'rY']];
+    const delta = [B[0]-A[0], B[1]-A[1]];
+    const len = Math.hypot(...delta) || 1;
+    const normal = [-delta[1]/len, delta[0]/len];
+    const bend = c[left ? 'bendL':'bendR'];
+    const C = [(A[0]+B[0])/2 + normal[0]*bend, (A[1]+B[1])/2 + normal[1]*bend];
+    const norm = (x,y) => {const d=Math.hypot(x,y)||1; return [-y/d,x/d];};
+    const N0=norm(C[0]-A[0],C[1]-A[1]), N1=norm(B[0]-C[0],B[1]-C[1]);
+    const rootW=12.5, r=10.2;
+    const offset=(p,k,w) => [p[0]+k[0]*w,p[1]+k[1]*w];
+    const p0=offset(A,N0,rootW), p1=offset(C,normal,11.5), p2=offset(B,N1,r);
+    const q0=offset(A,N0,-rootW),q1=offset(C,normal,-11.5),q2=offset(B,N1,-r);
+    const pt=p=>n(p[0])+' '+n(p[1]);
+    const cap=`A${r} ${r} 0 0 0 ${pt(q2)}`;
+    const full=`M${pt(p0)}Q${pt(p1)} ${pt(p2)}${cap}Q${pt(q1)} ${pt(q0)}Z`;
+    const trim=(a,b,d,t=.38)=>[
+      [(1-t)*(1-t)*a[0]+2*t*(1-t)*b[0]+t*t*d[0],(1-t)*(1-t)*a[1]+2*t*(1-t)*b[1]+t*t*d[1]],
+      [mix(b[0],d[0],t),mix(b[1],d[1],t)]
+    ];
+    const [ps,pc]=trim(p0,p1,p2),[qs,qc]=trim(q0,q1,q2);
+    const contour=`M${pt(ps)}Q${pt(pc)} ${pt(p2)}${cap}Q${pt(qc)} ${pt(qs)}`;
+    const tangent=[N1[1],-N1[0]];
+    return {full,contour,x:B[0]+tangent[0]*4.5,y:B[1]+tangent[1]*4.5,
+      angle:Math.atan2(tangent[1],tangent[0])*180/PI-90};
+  }
+  function arm(side, c) {
+    const shape=armD(side,c);
+    for(const key of ['arm'+side+'bf','arm'+side+'f','armClipPath'+side]) path($(key),shape.full);
+    path($('arm'+side+'s'),shape.contour);
+    for(const name of ['handBack'+side,'handFront'+side]) {
+      const el=$(name); attr(el,'cx',n(shape.x));attr(el,'cy',n(shape.y));
+      attr(el,'rx',14);attr(el,'ry',10.5);
+      transform(el,`rotate(${n(shape.angle)} ${n(shape.x)} ${n(shape.y)})`);
+    }
+    opacity($('arm'+side),c['front'+side]);
+  }
+  function leg(side,c) {
+    const sign=side==='L'?-1:1, hip=150+sign*27, y=300-c['leg'+side];
+    // Mirror BOTH endpoint paths before interpolation. Opposite winding would
+    // collapse the right leg halfway between standing and sitting.
+    const base=123;
+    const standing=[base-15,267,base-18,277,base-16,y-8,base-16,y,
+      base-16,y+16,base+16,y+16,base+16,y,
+      base+16,y-8,base+18,277,base+15,267,base+7,265,base-7,265,base-15,267];
+    const seated=[113,267,94,273,85,290,98,302,112,315,135,316,147,304,
+      155,292,134,279,132,269,125,266,119,266,113,267];
+    if(side==='R')for(let i=0;i<seated.length;i+=2){seated[i]=300-seated[i];standing[i]=300-standing[i];}
+    const p=standing.map((v,i)=>n(mix(v,seated[i],c.sit)));
+    const d=`M${p[0]} ${p[1]}C${p.slice(2,8).join(' ')}C${p.slice(8,14).join(' ')}C${p.slice(14,20).join(' ')}C${p.slice(20,26).join(' ')}Z`;
+    path($('leg'+side+'f'),d);path($('legClipPath'+side),d);
+    const hoof=$('hoof'+side);attr(hoof,'cx',n(mix(hip,150+sign*13,c.sit)));attr(hoof,'cy',n(mix(y+10,305,c.sit)));
+    attr(hoof,'rx',n(mix(17,14,c.sit)));attr(hoof,'ry',n(mix(9,10.5,c.sit)));
+  }
+  function eye(side,c,blink) {
+    const cx=side==='L'?113:187, cy=132;
+    const open=clamp(c.eye*blink*(side==='R'?1-c.wink:1));
+    const rx=8.4*c.wide, ry=11.7*open;
+    const curve=c.closedCurve*(1-open);
+    const upper=cy-ry*1.333+curve*1.333-(1-open)*1.6;
+    const lower=cy+ry*1.333+curve*1.333+(1-open)*1.6;
+    path($('eyePath'+side),`M${n(cx-rx)} ${cy}C${n(cx-rx)} ${n(upper)} ${n(cx+rx)} ${n(upper)} ${n(cx+rx)} ${cy}C${n(cx+rx)} ${n(lower)} ${n(cx-rx)} ${n(lower)} ${n(cx-rx)} ${cy}Z`);
+    const glint=$('highlight'+side);attr(glint,'cx',cx+2.8);attr(glint,'cy',n(cy-4.3*open));
+    attr(glint,'r',n(2.9*open));opacity(glint,smooth((open-.38)/.45));
+  }
+  function mouth(c) {
+    const a=clamp(c.open), width=mix(9,14,a), h=mix(.5,17,a);
+    path($('mouthLine'),`M141 173Q150 ${n(173+c.smile*8)} 159 173`);
+    opacity($('mouthLine'),1-smooth(a*3));
+    const top=171, mid=top+h*.85, end=top+h;
+    const w=width*mix(1,.55,c.round),start=top+c.round*h*.35,upper=top+mix(3,-h*.3,c.round);
+    path($('mouthOpen'),`M${n(150-w)} ${n(start)}C${n(150-w)} ${n(upper)} ${n(150+w)} ${n(upper)} ${n(150+w)} ${n(start)}C${n(150+w)} ${n(mid)} ${n(150+w*.35)} ${n(end)} 150 ${n(end)}C${n(150-w*.35)} ${n(end)} ${n(150-w)} ${n(mid)} ${n(150-w)} ${n(start)}Z`);
+    opacity($('mouthOpen'),smooth(a*3));
+    path($('tongue'),`M${n(150-w*.6)} ${n(top+h*.78)}Q150 ${n(top+h*.38)} ${n(150+w*.6)} ${n(top+h*.78)}Q150 ${n(top+h*1.12)} ${n(150-w*.6)} ${n(top+h*.78)}Z`);
+    opacity($('tongue'),smooth(a*3)*(1-c.round));
+  }
+  function draw(staticFrame=false) {
+    const c=cur;
+    const still=reduced()||staticFrame;
+    let blink=1;
+    if(!still) {
+      const phase=time%4.6;
+      if(phase>3.8 && phase<3.98) blink=1-sin((phase-3.8)/.18*PI);
+    }
+    transform($('root'),`translate(${n(c.x)} ${n(c.y)}) translate(150 315) rotate(${n(c.lean)}) scale(${n(c.sx)} ${n(c.sy)}) translate(-150 -315)`);
+    const bodyTransform=`translate(${n(c.sleep*35)} ${n(c.sleep*10)}) rotate(${n(c.sleep*-64)} 150 255)`;
+    transform($('bodyRig'),bodyTransform);transform($('frontArms'),bodyTransform);
+    transform($('heldProps'),bodyTransform);transform($('p_laptop'),bodyTransform);
+    transform($('p_pen'),bodyTransform+` translate(${n(c.rX+1)} ${n(c.rY+2)}) rotate(25)`);
+    transform($('head'),`translate(${n(c.hx-c.sleep*28)} ${n(c.hy+c.sit*8+c.sleep*100)}) rotate(${n(c.head-c.sleep*13)} 150 184)`);
+    transform($('earL'),`rotate(${n(c.earL)} 77 110)`);
+    transform($('earR'),`rotate(${n(c.earR)} 223 110)`);
+    transform($('tail'),`rotate(${n(c.tail+c.sleep*180)} 202 270)`);
+    transform($('band'),`translate(0 ${n(c.sit*8)}) rotate(${n(c.lean*.17 + (still?0:sin(time*1.8)*.35))} 150 187)`);
+    const bottom=290-c.sit*4;
+    const top=184+c.sit*8,neck=197+c.sit*8;
+    const trunk=`M109 ${n(top)}C91 ${n(neck)} 87 235 94 266C97 282 111 ${n(bottom)} 150 ${n(bottom)}C189 ${n(bottom)} 203 282 206 266C213 235 209 ${n(neck)} 191 ${n(top)}Q150 ${n(top-8)} 109 ${n(top)}Z`;
+    path($('bodyFill'),trunk);path($('bodyClipPath'),trunk);
+    leg('L',c);leg('R',c);arm('L',c);arm('R',c);
+    const milk=[255,253,249].map((v,i)=>Math.round(mix(v,[248,189,189][i],c.burn)));
+    for(const id of ['silhouette','head','frontArms'])attr($(id),'fill',`rgb(${milk.join(',')})`);
+    attr($('grayAmount'),'values',n(1-c.gray));
+    transform($('gaze'),`translate(${n(c.gazeX)} ${n(c.gazeY)})`);
+    eye('L',c,blink);eye('R',c,blink);mouth(c);
+    for(const side of ['L','R']) {
+      opacity($('brow'+side),c.brows);
+      transform($('brow'+side),`translate(0 ${n(c.browY)}) rotate(${n(c['brow'+side])} ${side==='L'?110:190} 109)`);
+    }
+    const jumpScale=clamp(1+c.y/130,.6,1);
+    attr($('shadow'),'rx',n(73*jumpScale+16*c.sleep));
+    opacity($('shadow'),.1*clamp(1+c.y/80,.4,1));
+    for(const key of PROPS) opacity(propNodes[key],propWeights[key]);
+    opacity($('dots'),c.dots);
+    [...$('dots').children].forEach((el,i)=>opacity(el,still?.8:.28+.72*Math.max(0,sin(time*3-i*.8))));
+    transform($('p_q'),`translate(${n(c.hx*.25)} ${n(c.hy*.5+c.y*.5)})`);
+    transform($('p_spark'),`translate(0 ${n(c.y*.35)})`);
+    transform($('p_heart'),`translate(0 ${n(still?0:2*sin(time*1.6))})`);
+    transform($('p_zzz'),`translate(0 ${n(still?0:1.7*sin(time*1.2))})`);
+    transform($('p_conf'),`translate(0 ${n(still?0:5*sin(time*2.8))})`);
+    transform($('p_wave'),`translate(${n((c.rX-230)*.35)} ${n((c.rY-180)*.35)})`);
+    if(!still && propWeights.flag>.001) {
+      const w=1.8*sin(time*2.8);
+      path($('flagCloth'),`M232 173Q252 ${n(180+w)} 279 ${n(173+w)}L273 ${n(208+w)}Q251 ${n(216+w)} 232 207Z`);
+    } else path($('flagCloth'),'M232 173Q252 180 279 173L273 208Q251 216 232 207Z');
+  }
+
+  function sample(snap=false, dt=1/30) {
+    const goal=HELD[current](reduced()?0:time);
+    if(current==='drained'&&!reduced())goal.sy+=.0018*Math.sin(time*.8);
+    // Celebrate briefly, then hold the original smile without looping jumps.
+    if(current==='celebrating'&&time>2.7){goal.y=0;goal.sx=1;goal.sy=1;goal.props=['spark'];}
+    for(const key of numericKeys)cur[key]=snap?goal[key]:mix(cur[key],goal[key],1-Math.exp(-dt*13));
+    for(const key of PROPS)propWeights[key]=goal.props.includes(key)?1:0;
+    draw(snap||reduced());
+  }
+  sample(true);
+  if(options.staticOnly)return {destroy(){},setPose(){}};
+  function stop(){if(frame!==null)win.cancelAnimationFrame(frame);frame=null;last=0;}
+  function tick(now){
+    frame=null;if(disposed||doc.hidden||!visible||reduced())return;
+    const dt=last?Math.min(.05,(now-last)/1000):1/30;
+    if(!last||dt>=1/30){last=now;time+=dt;sample(false,dt);}
+    frame=win.requestAnimationFrame(tick);
+  }
+  function wake(){stop();if(disposed)return;if(reduced()){time=0;sample(true);}else if(!doc.hidden&&visible)frame=win.requestAnimationFrame(tick);}
+  media?.addEventListener('change',wake);doc.addEventListener('visibilitychange',wake);
+  const observer=win.IntersectionObserver?new win.IntersectionObserver(entries=>{visible=entries[0].isIntersecting;wake();}):null;
+  observer?.observe(svg);wake();
+  return {setPose(pose){if(HELD[pose]){current=pose;time=0;wake();}},destroy(){disposed=true;stop();observer?.disconnect();media?.removeEventListener('change',wake);doc.removeEventListener('visibilitychange',wake);}};
+}
+
+// Shared by the React host and the standalone recovery document.
+function createConnectionMonitor(options) {
+  const env=options.env||window, now=()=>Date.now();
+  let disposed=false,flight=null,controller=null,timer=null,attempt=0,lastStart=-Infinity;
+  const started=now();
+  let state={status:options.mode==='error'?'unavailable':'offline',message:'',checkedAt:null};
+  const publish=(status,message='')=>{if(disposed)return;state={status,message,checkedAt:status==='checking'?state.checkedAt:now()};options.onState({...state});};
+  const pause=(ms,signal)=>new Promise((resolve,reject)=>{
+    const cancel=()=>{env.clearTimeout(id);signal.removeEventListener('abort',cancel);reject(new Error('cancelled'));};
+    const id=env.setTimeout(()=>{signal.removeEventListener('abort',cancel);resolve();},ms);
+    signal.addEventListener('abort',cancel,{once:true});if(signal.aborted)cancel();
+  });
+  function schedule(ms){env.clearTimeout(timer);if(!disposed&&!env.document.hidden&&options.automatic!==false)timer=env.setTimeout(()=>void check(),ms);}
+  async function probe(signal){const r=await env.fetch('/api/connection',{cache:'no-store',credentials:'same-origin',signal});if(!r.ok||(await r.json()).reachable!==true)throw new Error('unavailable');}
+  function check(){
+    if(disposed)return Promise.resolve(false);if(flight)return flight;
+    if(now()-lastStart<2500){schedule(2500-(now()-lastStart));return Promise.resolve(false);}
+    env.clearTimeout(timer);lastStart=now();controller=new AbortController();const signal=controller.signal;publish('checking');
+    flight=(async()=>{
+      const timeout=env.setTimeout(()=>controller?.abort(),6000);
+      try{
+        await probe(signal);await pause(900,signal);await probe(signal);
+        if(options.verify&&!(await options.verify(signal)))throw new Error('page unavailable');
+        await pause(Math.max(0,1200-(now()-started)),signal);
+        if(disposed||signal.aborted)return false;
+        attempt=0;publish('online','Sudah tersambung. Melanjutkan halaman Anda…');options.onRecovered();return true;
+      }catch{
+        if(disposed)return false;
+        const offline=env.navigator.onLine===false;
+        publish(offline?'offline':'unavailable',offline?'Masih belum terhubung. Periksa Wi-Fi atau data seluler Anda.':options.automatic===false?'Halaman belum bisa dilanjutkan. Tunggu sebentar, lalu coba lagi.':'Sambungan ke halaman ini belum siap. Kami akan mencoba lagi.');
+        schedule(Math.min(30000,5000*2**Math.min(attempt++,3)));return false;
+      }finally{env.clearTimeout(timeout);flight=null;controller=null;}
+    })();return flight;
+  }
+  const online=()=>schedule(Math.max(200,2500-(now()-lastStart)));
+  const offline=()=>{if(!flight)publish('offline','Koneksi terputus. Draf Anda tetap di perangkat ini.');schedule(5000);};
+  const visible=()=>{if(!env.document.hidden)online();else env.clearTimeout(timer);};
+  env.addEventListener('online',online);env.addEventListener('offline',offline);env.document.addEventListener('visibilitychange',visible);
+  options.onState({...state});schedule(1200);
+  return {check,getState:()=>({...state}),dispose(){disposed=true;env.clearTimeout(timer);controller?.abort();env.removeEventListener('online',online);env.removeEventListener('offline',offline);env.document.removeEventListener('visibilitychange',visible);}};
+}
+
+function mountGame(byId) {
  const foods = [['☕','Kopi'],['🍔','Burger'],['🍕','Pizza'],['🍩','Donat'],['🍓','Stroberi'],['🍦','Es krim']];
  let cards = [], opened = [], matches = 0, moves = 0, lock = false, timer;
  function reset() {
@@ -102,7 +454,58 @@
   }
  }
  byId('restart').addEventListener('click', reset); reset();
-})();
-</script>
-</body>
-</html>
+
+ return () => { clearTimeout(timer); byId('restart').removeEventListener('click',reset); byId('board').replaceChildren(); };
+}
+
+function bootRecovery(){
+ const byId=id=>document.getElementById(id);
+ let config={};try{config=JSON.parse(byId('recovery-config').textContent);}catch{}
+ const embedded=Boolean(config.embedded&&parent!==window);
+ const mode=config.mode||document.documentElement.dataset.recoveryMode||'offline';
+ const origin=location.origin==='null'?parent.location.origin:location.origin;
+ let reduced=false;try{reduced=localStorage.getItem('selforder_reduce_motion')==='1';const theme=localStorage.getItem('selforder_theme');document.documentElement.classList.toggle('dark',theme==='dark'||((!theme||theme==='system')&&matchMedia('(prefers-color-scheme: dark)').matches));}catch{}
+ const rig=createLuu(byId('mascot').querySelector('svg'),{pose:'drained',reducedMotion:reduced});
+ const stopGame=mountGame(byId);
+ byId('draft').replaceChildren();byId('saved').hidden=true;byId('empty-draft').hidden=false;
+ try{
+  const saved=JSON.parse(sessionStorage.getItem('selforder_order_draft')||'null');
+  const age=Date.now()-saved?.savedAt;
+  const items=saved?.version===1&&Number.isFinite(age)&&age>=-60000&&age<43200000&&Array.isArray(saved.cart)?saved.cart.filter(item=>typeof item.name==='string'&&Number.isInteger(item.quantity)&&item.quantity>0&&item.quantity<=100).slice(0,50):[];
+  if(items.length){
+   byId('saved').hidden=false;byId('empty-draft').hidden=true;
+   byId('draft-updated').textContent='Draf tersimpan · '+new Date(saved.savedAt).toLocaleString('id-ID',{dateStyle:'medium',timeStyle:'short'});
+   for(const item of items){const li=document.createElement('li'),name=document.createElement('strong');name.textContent=item.quantity+' × '+item.name.slice(0,120);li.append(name);if(typeof item.notes==='string'&&item.notes){const note=document.createElement('small');note.textContent=item.notes.slice(0,200);li.append(note);}byId('draft').append(li);}
+  }
+ }catch{}
+ const paint=state=>{
+  const busy=state.status==='checking';byId('retry').disabled=busy||state.status==='online';byId('retry').textContent=busy?'Memeriksa koneksi…':state.status==='online'?'Melanjutkan…':'Coba lagi';
+  byId('network').textContent=({offline:'Koneksi terputus',unavailable:'Layanan belum siap',checking:'Sedang memeriksa',online:'Sudah tersambung'})[state.status]||'Koneksi terputus';
+  if(state.status!=='checking'&&state.status!=='online'){
+   const service=state.status==='unavailable';byId('heading').textContent=service?'Ada kendala sementara':'Koneksi lagi terputus';
+   byId('description').textContent=service?'Halaman ini belum bisa dilanjutkan. Tunggu sebentar, lalu coba lagi.':'Luu ikut kehabisan energi. Coba sambungkan internet untuk melanjutkan.';
+  }
+  byId('feedback').textContent=state.message||(busy?'Tunggu sebentar, kami sedang memeriksa sambungannya.':config.automatic===false?'Tekan Coba lagi untuk memeriksa sambungan.':'Kami akan melanjutkan setelah koneksi siap.');
+  if(state.checkedAt)byId('last-check').textContent='Terakhir diperiksa '+new Date(state.checkedAt).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+ };
+ let monitor;
+ const destination=()=>{
+  const candidate=new URL(new URLSearchParams(location.search).get('returnTo')||location.href,origin);
+  if(candidate.origin!==origin||['/offline','/offline.html'].includes(candidate.pathname))return '/menu';
+  return candidate.pathname+candidate.search+candidate.hash;
+ };
+ if(!embedded)monitor=createConnectionMonitor({mode,onState:paint,onRecovered:()=>location.replace(destination()),verify:async signal=>{
+  const r=await fetch(destination(),{cache:'no-store',signal,headers:{Accept:'text/html'}});
+  return r.ok&&r.headers.get('content-type')?.includes('text/html')&&!r.headers.get('X-SelfOrder-Recovery');
+ }});
+ const retry=()=>{if(embedded)parent.postMessage({type:'luu:retry'},origin);else void monitor.check();};
+ const message=event=>{if(embedded&&event.source===parent&&event.origin===origin&&event.data?.type==='luu:state')paint(event.data.state);};
+ byId('retry').addEventListener('click',retry);window.addEventListener('message',message);
+ if(embedded){paint({status:mode==='error'?'unavailable':'offline'});parent.postMessage({type:'luu:ready'},origin);}
+ byId('heading').focus({preventScroll:true});
+ return()=>{rig.destroy();monitor?.dispose();stopGame();byId('retry').removeEventListener('click',retry);window.removeEventListener('message',message);};
+}
+let disposeRecovery=bootRecovery();
+window.addEventListener('pagehide',()=>disposeRecovery());
+window.addEventListener('pageshow',event=>{if(event.persisted)disposeRecovery=bootRecovery();});
+</script></body></html>

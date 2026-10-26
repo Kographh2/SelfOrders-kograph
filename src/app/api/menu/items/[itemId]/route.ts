@@ -4,6 +4,8 @@ import { getAuthUser, isOwnerOrAdmin, hasStoreAccess } from "@/lib/auth";
 import { normalizeOptionGroups } from "@/lib/menu-options";
 import { normalizeMenuDays, normalizeMenuSchedule, normalizeMenuTags, normalizeMenuTranslations } from "@/lib/menu-metadata";
 import {writeAudit} from "@/lib/audit";
+import { PUBLIC_MENU_FIELDS } from "@/lib/public-fields";
+import { isMenuScheduledNow } from "@/lib/menu-schedule";
 
 type Params = { params: Promise<{ itemId: string }> };
 
@@ -12,12 +14,16 @@ export async function GET(_request: NextRequest, { params }: Params) {
   try {
     const { data, error } = await supabaseAdmin
       .from("menu_items")
-      .select("*")
+      .select(PUBLIC_MENU_FIELDS)
       .eq("id", itemId)
+      .eq("is_available", true).eq("show_on_menu", true)
+      .or("track_stock.eq.false,stock_quantity.gt.0")
       .single();
 
     if (error || !data) return NextResponse.json({ error: "Item not found" }, { status: 404 });
 
+    const { data: store } = await supabaseAdmin.from("stores").select("timezone").eq("id", data.store_id).eq("is_active", true).maybeSingle();
+    if (!store || !isMenuScheduledNow(data, store.timezone || "Asia/Jakarta")) return NextResponse.json({ error: "Menu tidak tersedia" }, { status: 404 });
     return NextResponse.json({ data }, { status: 200 });
   } catch {
     return NextResponse.json({ error: "Failed to fetch item" }, { status: 500 });
@@ -50,6 +56,10 @@ export async function PUT(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Invalid price" }, { status: 400 });
     }
     const schedule = normalizeMenuSchedule(availableFrom, availableUntil);
+    if (categoryId !== undefined) {
+      const { data: category } = await supabaseAdmin.from("categories").select("id").eq("id", categoryId).eq("store_id", existing.store_id).maybeSingle();
+      if (!category) return NextResponse.json({ error: "Kategori bukan milik cabang ini" }, { status: 400 });
+    }
     const prep = prepMinutes === undefined ? undefined : Math.floor(Number(prepMinutes));
     if (prep !== undefined && (!Number.isFinite(prep) || prep < 1 || prep > 240)) return NextResponse.json({ error: "Waktu persiapan harus 1-240 menit" }, { status: 400 });
 

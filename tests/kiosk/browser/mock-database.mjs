@@ -3,6 +3,9 @@ import { createServer } from "node:http";
 createServer((request, response) => {
   if (request.url === "/health") { response.writeHead(200); response.end("ok"); return; }
   response.setHeader("Content-Type", "application/json");
+  if (request.method === "POST" && request.url === "/rest/v1/rpc/consume_request_budget") {
+    response.writeHead(200); response.end("true"); return;
+  }
   if (request.method === "GET" && request.url.startsWith("/rest/v1/kiosk_stations?")) {
     response.writeHead(200); response.end("[]"); return;
   }

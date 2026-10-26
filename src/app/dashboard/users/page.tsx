@@ -176,7 +176,7 @@ export default function UsersPage() {
           <div className="bg-navy-50 border border-navy-200 rounded-2xl px-4 py-3 mb-5 text-sm text-navy-600 flex items-start gap-2">
             <ShieldCheck className="w-4 h-4 text-navy-400 flex-shrink-0 mt-0.5" />
             <span>
-              Klik <strong>Edit</strong> pada user untuk mengubah role dan assign toko sekaligus.
+              Perubahan role, cabang, dan status akun dilakukan oleh owner. Sesi lama dicabut setelah perubahan.
               User yang jadi <strong>Admin</strong> atau <strong>Kasir</strong> perlu di-assign ke toko agar bisa akses dashboard.
             </span>
           </div>
@@ -267,7 +267,7 @@ export default function UsersPage() {
                     {/* Actions */}
                     {u.id !== currentUser?.id && (
                       <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {isOwnerOrAdmin && (
+                        {isOwner && u.role!=="owner" && (
                           <button
                             onClick={() => openEdit(u)}
                             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-navy-700 border border-navy-200 rounded-xl hover:bg-navy-50 transition-colors"
@@ -276,7 +276,7 @@ export default function UsersPage() {
                             Edit
                           </button>
                         )}
-                        {u.is_active && canDeleteUsers && (
+                        {u.is_active && u.role!=="owner" && canDeleteUsers && (
                           <button
                             onClick={() => setDeactivateTarget(u)}
                             className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"

@@ -4,7 +4,7 @@ import { getAuthUser, hasStoreAccess, isOwnerOrAdmin } from "@/lib/auth";
 import { isUuid, validateAd } from "@/lib/restaurant-ads";
 
 export const dynamic = "force-dynamic";
-const fields = "id,store_id,title,description,image_url,link_url,link_label,is_active,display_order";
+const fields = "id,store_id,title,description,image_url,link_url,link_label,is_active,display_order,revision";
 const reply = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
 
 export async function GET(request: NextRequest) {

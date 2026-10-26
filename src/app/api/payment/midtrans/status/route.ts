@@ -1,9 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
-import { snap } from "@/lib/midtrans";
+import { reconcilePayment } from "@/lib/payment-reconciliation";
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { notifyOrderStatus } from "@/lib/push-notifications";
-import { finalizeLoyaltyRedemption } from "@/lib/loyalty-order";
 
 export const dynamic = "force-dynamic";
 
@@ -36,38 +34,8 @@ export async function POST(request: NextRequest) {
     if (order.payment_method !== "snap") {
       return NextResponse.json({ data: { payment_status: order.payment_status, checked: false } });
     }
-
-    // Read the authoritative state from Midtrans; browser callbacks/webhooks
-    // can be delayed, so the customer can still refresh payment status here.
-    const transaction = await snap.transaction.status(order.id);
-    if (transaction.order_id !== order.id) {
-      return NextResponse.json({ error: "Referensi transaksi tidak cocok" }, { status: 409 });
-    }
-    if (transaction.gross_amount && Math.round(Number(transaction.gross_amount)) !== Math.round(Number(order.total_amount))) {
-      return NextResponse.json({ error: "Nominal transaksi tidak cocok" }, { status: 409 });
-    }
-
-    const paymentStatus = mapStatus(transaction.transaction_status, transaction.fraud_status);
-    const isPaid = paymentStatus === "paid";
-    const now = new Date().toISOString();
-    await supabaseAdmin.from("payments").update({
-      status: paymentStatus,
-      transaction_id: transaction.transaction_id ?? null,
-      midtrans_order_id: order.id,
-      paid_at: isPaid ? now : null,
-      snap_data: transaction,
-      updated_at: now,
-    }).eq("order_id", order.id).neq("status", "paid");
-
-    const orderUpdate: Record<string, string> = { payment_status: paymentStatus, updated_at: now };
-    if (isPaid) orderUpdate.status = "confirmed";
-    else if (paymentStatus === "failed") orderUpdate.status = "cancelled";
-    await supabaseAdmin.from("orders").update(orderUpdate).eq("id", order.id).eq("payment_status", "pending");
-    await finalizeLoyaltyRedemption(order.id, paymentStatus);
-
-    if (isPaid) await notifyOrderStatus(order.id, "confirmed");
-    const { data: latest } = await supabaseAdmin.from("orders").select("payment_status").eq("id", order.id).single();
-    return NextResponse.json({ data: { payment_status: latest?.payment_status ?? paymentStatus, checked: true } });
+    const data = await reconcilePayment(order.id);
+    return NextResponse.json({ data: { ...data, checked: true } });
   } catch (error) {
     console.error("Midtrans status check error:", error);
     return NextResponse.json({ error: "Status belum bisa diambil dari Midtrans. Coba lagi sebentar." }, { status: 502 });

@@ -1,5 +1,9 @@
 # KIOSK validation
 
+## Regression check — 25 October 2026
+
+Production fixture build and all **12/12 kiosk browser tests pass** after the security changes. The SQL kiosk suite now applies the new security, transaction, checkout and operations migrations as well as legacy prerequisites. Virtual keyboard, idempotent retry, paid-only phone QR handoff, acknowledgement and ten-second reset remain verified locally. A streamed-metadata race that replaced the station's browser title was fixed. See [the remediation notes](REMEDIATION_2026-10-24.md) for the full **79/79** Node/API/database regression result and pending hosted/device checks.
+
 ## UI, virtual keyboard and QR handoff — 2026-10-19
 
 The existing kiosk order/payment implementation was inspected before these changes.

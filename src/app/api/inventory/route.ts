@@ -27,7 +27,10 @@ export async function POST(request: NextRequest) {
   }
   const id = body.id ? String(body.id) : undefined;
   const { data: before } = id ? await supabaseAdmin.from("ingredients").select("*").eq("id", id).eq("store_id", storeId).maybeSingle() : { data: null };
-  const { data, error } = await supabaseAdmin.from("ingredients").upsert({ ...(id ? { id } : {}), store_id: storeId, name, unit, stock_quantity: Number(body.stock_quantity), low_stock_threshold: Math.max(0, Number(body.low_stock_threshold) || 0), unit_cost: Math.max(0, Number(body.unit_cost) || 0), updated_at: new Date().toISOString() }).select().single();
+  if (id && !before) return NextResponse.json({ error: "Bahan tidak ditemukan di cabang ini" }, { status: 404 });
+  const payload = { name, unit, stock_quantity: Number(body.stock_quantity), low_stock_threshold: Math.max(0, Number(body.low_stock_threshold) || 0), unit_cost: Math.max(0, Number(body.unit_cost) || 0), updated_at: new Date().toISOString() };
+  const mutation = id ? supabaseAdmin.from("ingredients").update(payload).eq("id", id).eq("store_id", storeId) : supabaseAdmin.from("ingredients").insert({ ...payload, store_id: storeId });
+  const { data, error } = await mutation.select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   if (id && before && Number(before.stock_quantity) !== Number(data.stock_quantity)) await supabaseAdmin.from("ingredient_movements").insert({ ingredient_id: id, actor_id: user!.userId, movement_type: Number(data.stock_quantity) > Number(before.stock_quantity) ? "restock" : "adjustment", quantity_delta: Number(data.stock_quantity) - Number(before.stock_quantity), notes: String(body.notes || "Penyesuaian stok") });
   await writeAudit(user!,storeId,id?"ingredient.update":"ingredient.create","ingredient",data.id,before,data);

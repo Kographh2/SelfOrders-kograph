@@ -76,11 +76,14 @@ export async function GET(request: NextRequest) {
       ? supabaseAdmin.from("tables").select("id, number, is_active").eq("store_id", storeId)
       : supabaseAdmin.from("tables").select("id, number, is_active");
 
-    const [storesRes, usersRes, catsRes, itemsRes, ordersRes, tablesRes] = await Promise.all([
-      storesQuery, usersQuery, catsQ, itemsQ, ordersQ, tablesQ,
+    const [storesRes, usersRes, catsRes, itemsRes, ordersRes, tablesRes, summaryRes] = await Promise.all([
+      storesQuery, usersQuery, catsQ, itemsQ, ordersQ, tablesQ, supabaseAdmin.rpc("operations_summary",{p_store:storeId || null}),
     ]);
 
+    const failed=[storesRes,usersRes,catsRes,itemsRes,ordersRes,tablesRes,summaryRes].find(result=>result.error);
+    if(failed?.error)throw failed.error;
     const data = {
+      summary:summaryRes.data,
       stores:    storesRes.data  ?? [],
       users:     usersRes.data   ?? [],
       categories: catsRes.data   ?? [],

@@ -4,8 +4,9 @@ test("offline screen works without a service worker; game matches and restarts",
   await page.setViewportSize({ width: 320, height: 740 });
   await page.goto("/profile");
   await context.setOffline(true);
-  const frame = page.frameLocator('iframe[title="Koneksi terputus dan permainan offline"]');
-  await expect(frame.getByRole("heading", { name: "Koneksi sedang terputus" })).toBeVisible();
+  const frame = page.frameLocator('iframe[title="Pemulihan koneksi bersama Luu"]');
+  await expect(frame.getByRole("heading", { name: "Koneksi lagi terputus" })).toBeVisible();
+  await frame.getByText("Main sebentar",{exact:true}).click();
   const cards = frame.locator(".tile");
   await expect(cards).toHaveCount(12);
   await cards.nth(0).focus();
@@ -34,13 +35,10 @@ test("offline screen works without a service worker; game matches and restarts",
   await frame.getByRole("button", { name: "Ulangi game" }).click();
   await expect(frame.locator("#moves")).toHaveText("0 langkah");
   await frame.getByRole("button", { name: "Coba lagi" }).click();
-  await expect(frame.locator("#feedback")).toContainText("Masih offline");
+  await expect(frame.locator("#feedback")).toContainText("Masih belum terhubung");
   expect(await frame.locator("body").evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: "artifacts/ui/offline-mobile.png" });
   await context.setOffline(false);
-  await expect(frame.locator("#network")).toHaveText("Jaringan tersedia");
-  await expect(frame.locator("#pairs")).toHaveText("0 / 6 pasang");
-  await frame.getByRole("button", { name: "Coba lagi" }).click();
   await expect(page.getByRole("heading", { name: "Profil", exact: true })).toBeVisible();
 });
 
@@ -48,10 +46,10 @@ test("catalog failure has recovery screen, failed probe stays, successful retry 
   await page.route("**/api/stores", route => route.fulfill({ status: 503, json: { error: "Unavailable" } }));
   await page.route("**/api/connection", route => route.fulfill({ status: 503, json: {} }));
   await page.goto("/menu?store=recovery-test&table=9");
-  const frame = page.frameLocator('iframe[title="Pemulihan aplikasi"]');
+  const frame = page.frameLocator('iframe[title="Pemulihan koneksi bersama Luu"]');
   await expect(frame.getByRole("heading", { name: "Ada kendala sementara" })).toBeVisible();
   await frame.getByRole("button", { name: "Coba lagi" }).click();
-  await expect(frame.locator("#feedback")).toContainText("Aplikasi belum bisa dihubungi");
+  await expect(frame.locator("#feedback")).toContainText("belum siap");
   await page.unroute("**/api/connection");
   await page.route("**/api/**", route => {
     const path = new URL(route.request().url()).pathname;
@@ -74,18 +72,20 @@ test.describe("installed offline fallback", () => {
     });
     await context.setOffline(true);
     await page.reload();
-    await expect(page.getByRole("heading", { name: "Koneksi sedang terputus" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Koneksi lagi terputus" })).toBeVisible();
+    await page.getByText("Main sebentar",{exact:true}).click();
     await page.getByRole("button", { name: "Kartu 1, tertutup", exact: true }).click();
     await expect(page.locator(".tile").first()).toHaveAttribute("aria-pressed", "true");
     await page.goto("/orders?from=offline-test");
-    await expect(page.getByRole("heading", { name: "Koneksi sedang terputus" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Koneksi lagi terputus" })).toBeVisible();
     const cached = await page.evaluate(async () => {
-      const cache = await caches.open("selforder-recovery-v1");
+      const key=(await caches.keys()).find(key=>key.startsWith("selforder-recovery-v2-luu-"));
+      if(!key)throw new Error("Luu offline cache not installed");
+      const cache = await caches.open(key);
       return (await cache.keys()).map(request => new URL(request.url).pathname);
     });
     expect(cached).toEqual(["/offline.html"]);
     await context.setOffline(false);
-    await page.getByRole("button", { name: "Coba lagi" }).click();
     await expect(page).toHaveURL(/\/orders\?from=offline-test$/);
     await expect(page.locator("#game-title")).toHaveCount(0);
   });

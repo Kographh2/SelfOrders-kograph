@@ -1,5 +1,8 @@
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
+import { supabaseAdmin } from "@/lib/supabase-server";
+
+export const AUTH_COOKIE = "selforder_account";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -16,19 +19,28 @@ export interface DecodedToken {
   storeId?: string;
   iat?: number;
   exp?: number;
+  sessionId?: string;
+  version?: number;
 }
 
 export async function getAuthUser(
   request: NextRequest
 ): Promise<DecodedToken | null> {
   if (!SECRET) return null;
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-
-  const token = authHeader.substring(7);
+  const bearer = request.headers.get("authorization")?.replace(/^Bearer /, "");
+  const cookie = request.cookies.get(AUTH_COOKIE)?.value;
+  const token = cookie || (bearer !== "session" ? bearer : undefined);
+  if (!token) return null;
+  if (cookie && !["GET", "HEAD", "OPTIONS"].includes(request.method) && request.headers.get("origin") !== request.nextUrl.origin) return null;
   try {
-    const decoded = jwt.verify(token, SECRET) as DecodedToken;
-    return decoded;
+    const decoded = jwt.verify(token, SECRET, { algorithms: ["HS256"], audience: "selforder-account", issuer: "selforder" }) as DecodedToken;
+    if (!decoded.userId || !decoded.sessionId || !Number.isInteger(decoded.version)) return null;
+    const [{ data: profile, error }, { data: session, error: sessionError }] = await Promise.all([
+      supabaseAdmin.from("users").select("id,email,role,store_id,is_active,auth_version").eq("id", decoded.userId).maybeSingle(),
+      supabaseAdmin.from("app_sessions").select("id").eq("id", decoded.sessionId).eq("user_id", decoded.userId).eq("auth_version", decoded.version).is("revoked_at", null).gt("expires_at", new Date().toISOString()).maybeSingle(),
+    ]);
+    if (error || sessionError || !session || !profile?.is_active || profile.auth_version !== decoded.version) return null;
+    return { ...decoded, email: profile.email || "", role: profile.role, storeId: profile.store_id || undefined };
   } catch {
     return null;
   }
@@ -39,6 +51,8 @@ export function createToken(user: {
   email: string;
   role: string;
   storeId?: string;
+  sessionId?: string;
+  version?: number;
 }) {
   if (!SECRET) throw new Error("JWT_SECRET is required for authentication");
   return jwt.sign(
@@ -47,9 +61,11 @@ export function createToken(user: {
       email: user.email,
       role: user.role,
       storeId: user.storeId,
+      sessionId: user.sessionId,
+      version: user.version,
     },
     SECRET,
-    { expiresIn: "7d" }
+    { expiresIn: "1h", algorithm: "HS256", audience: "selforder-account", issuer: "selforder" }
   );
 }
 

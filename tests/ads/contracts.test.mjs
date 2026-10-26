@@ -14,7 +14,7 @@ function load(file, overrides = {}) {
   return mod.exports;
 }
 const lib = load("src/lib/restaurant-ads.ts");
-const auth = load("src/lib/auth.ts");
+const auth = load("src/lib/auth.ts", {"@/lib/supabase-server":{supabaseAdmin:{}}});
 const store = "11111111-1111-4111-8111-111111111111";
 const other = "22222222-2222-4222-8222-222222222222";
 const id = "33333333-3333-4333-8333-333333333333";

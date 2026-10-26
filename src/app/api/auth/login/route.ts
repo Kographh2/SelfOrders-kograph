@@ -1,121 +1,45 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import jwt from "jsonwebtoken";
+
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { createToken } from "@/lib/auth";
-
+import { AUTH_COOKIE, createToken, type DecodedToken } from "@/lib/auth";
+import { boundedJson, requestBudget, sameOrigin } from "@/lib/request-security";
 export const dynamic = "force-dynamic";
-
-/**
- * POST /api/auth/login
- *
- * Hanya menerima mode internal: { supabaseUid, email }
- * Dipanggil setelah Supabase auth berhasil di client.
- * Menggunakan service role key → bisa baca public.users tanpa RLS.
- *
- * TIDAK menerima email+password langsung (itu dilakukan di client via Supabase SDK).
- * Ini mencegah bypass auth dengan mengirim request langsung ke endpoint ini.
- */
 export async function POST(request: NextRequest) {
+  if (!sameOrigin(request)) return NextResponse.json({ error: "Asal permintaan tidak valid" }, { status: 403 });
   try {
-    const body = await request.json();
-    const { supabaseUid, email: bodyEmail } = body;
+    const limited = await requestBudget(request, "login", 60, 60); if (limited) return limited;
+    const { supabaseUid } = await boundedJson(request, 4096);
     const accessToken = request.headers.get("authorization")?.replace(/^Bearer /, "");
     if (!accessToken) return NextResponse.json({ error: "Sesi Supabase diperlukan" }, { status: 401 });
     const verified = await supabaseAdmin.auth.getUser(accessToken);
-    if (verified.error || !verified.data.user || verified.data.user.id !== supabaseUid) {
-      return NextResponse.json({ error: "Sesi Supabase tidak valid" }, { status: 401 });
-    }
-
-    if (!supabaseUid) {
-      return NextResponse.json({ error: "supabaseUid required" }, { status: 400 });
-    }
-
-    // Verifikasi uid benar-benar ada di auth.users (pakai service role)
-    const { data: authUser, error: authErr } = await supabaseAdmin.auth.admin.getUserById(supabaseUid);
-    if (authErr || !authUser?.user) {
-      return NextResponse.json({ error: "User tidak ditemukan di auth" }, { status: 404 });
-    }
-
-    const supabaseUser = authUser.user;
-
-    // Cari profil di public.users
-    let { data: profile, error: profileErr } = await supabaseAdmin
-      .from("users")
-      .select("id, email, name, role, store_id, is_active")
-      .eq("id", supabaseUid)
-      .single();
-
-    // Jika belum ada (trigger belum jalan / race condition) → buat sekarang
-    if (profileErr || !profile) {
-      const displayName =
-        supabaseUser.user_metadata?.name ??
-        supabaseUser.email?.split("@")[0] ??
-        "User";
-
-      const { data: created, error: createErr } = await supabaseAdmin
-        .from("users")
-        .insert({
-          id: supabaseUid,
-          email: supabaseUser.email ?? bodyEmail ?? "",
-          name: displayName,
-          role: "user",       // SELALU user — tidak bisa di-override
-          is_active: true,
-        })
-        .select("id, email, name, role, store_id, is_active")
-        .single();
-
-      if (createErr || !created) {
-        console.error("[login] create profile error:", createErr);
-        // Tetap buat token dengan role user agar app tidak crash total
-        const fallbackToken = createToken({
-          id: supabaseUid,
-          email: supabaseUser.email ?? "",
-          role: "user",
-        });
-        return NextResponse.json({
-          data: {
-            token: fallbackToken,
-            user: {
-              id: supabaseUid,
-              email: supabaseUser.email ?? "",
-              name: displayName,
-              role: "user",
-              store_id: null,
-            },
-          },
-        });
-      }
-
-      profile = created;
-    }
-
-    // Jika user dinonaktifkan → tolak
-    if (profile.is_active === false) {
-      return NextResponse.json({ error: "Akun dinonaktifkan. Hubungi admin." }, { status: 403 });
-    }
-
-    // Buat JWT — role SELALU dari DB, tidak pernah dari request body
-    const token = createToken({
-      id: profile.id,
-      email: profile.email ?? supabaseUser.email ?? "",
-      role: profile.role,              // dari DB
-      storeId: profile.store_id ?? undefined,
-    });
-
-    return NextResponse.json({
-      data: {
-        token,
-        user: {
-          id: profile.id,
-          email: profile.email,
-          name: profile.name,
-          role: profile.role,
-          store_id: profile.store_id,
-          is_active: profile.is_active,
-        },
-      },
-    });
-  } catch (err: unknown) {
-    console.error("[login route] unexpected error:", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    const identity = verified.data.user;
+    if (verified.error || !identity || identity.id !== supabaseUid) return NextResponse.json({ error: "Sesi Supabase tidak valid" }, { status: 401 });
+    // Only trusted identity fields are copied; signup metadata never chooses role/store.
+    const provision=await supabaseAdmin.from("users").upsert({id:identity.id,email:identity.email || null,name:String(identity.user_metadata?.name || "Pelanggan").slice(0,120),role:"user",is_active:true},{onConflict:"id",ignoreDuplicates:true});
+    if(provision.error)return NextResponse.json({error:"Profil belum dapat disiapkan"},{status:503});
+    const { data: profile, error } = await supabaseAdmin.from("users").select("id,email,name,role,store_id,is_active,auth_version").eq("id", identity.id).maybeSingle();
+    if (error || !profile) return NextResponse.json({ error: "Profil belum tersedia. Hubungi petugas." }, { status: 503 });
+    if (!profile.is_active) return NextResponse.json({ error: "Akun dinonaktifkan. Hubungi admin." }, { status: 403 });
+    // getUser already verified the Supabase token; bind revocation to its session,
+    // so deleting the app cookie cannot resurrect a revoked Supabase session.
+    const accessClaims=jwt.decode(accessToken);
+    const sessionId=typeof accessClaims==="object" && accessClaims ? accessClaims.session_id : null;
+    if(typeof sessionId!=="string" || !/^[0-9a-f-]{36}$/i.test(sessionId))return NextResponse.json({error:"Sesi tidak memiliki identitas yang valid"},{status:401});
+    const {data:existing,error:lookupError}=await supabaseAdmin.from("app_sessions").select("id,user_id,auth_version,expires_at,revoked_at").eq("id",sessionId).maybeSingle();
+    if(lookupError)return NextResponse.json({error:"Sesi belum dapat diperiksa"},{status:503});
+    if(existing && (existing.user_id!==identity.id || existing.revoked_at || existing.auth_version!==profile.auth_version || Date.parse(existing.expires_at)<=Date.now()))return NextResponse.json({error:"Sesi telah dicabut. Silakan masuk kembali."},{status:401});
+    const { error: sessionError } = await supabaseAdmin.from("app_sessions").upsert({
+      id: sessionId, user_id: identity.id, auth_version: profile.auth_version,
+      device: (request.headers.get("user-agent") || "Browser").slice(0, 180),
+    }, { onConflict: "id", ignoreDuplicates: true });
+    if (sessionError) return NextResponse.json({ error: "Sesi belum bisa dibuat. Pastikan migrasi keamanan terpasang." }, { status: 503 });
+    const token = createToken({ id: profile.id, email: profile.email || "", role: profile.role, storeId: profile.store_id || undefined, version: profile.auth_version, sessionId });
+    const { auth_version: _, ...safeProfile } = profile;
+    const response = NextResponse.json({ data: { token: "session", user: safeProfile } }, { headers: { "Cache-Control": "no-store" } });
+    response.cookies.set(AUTH_COOKIE, token, { httpOnly: true, secure: request.nextUrl.protocol === "https:", sameSite: "strict", path: "/", maxAge: 7 * 86400 });
+    return response;
+  } catch {
+    return NextResponse.json({ error: "Sesi belum dapat dibuat. Coba lagi." }, { status: 503 });
   }
 }

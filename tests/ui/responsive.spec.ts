@@ -15,6 +15,7 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/**", async route => {
     const url = new URL(route.request().url());
     let data: unknown = [];
+    if (url.pathname === "/api/guest-session") data={id:"fixture-guest"};
     if (url.pathname === "/api/stores") data = [store];
     if (url.pathname === "/api/stores/ui-store") data = store;
     if (url.pathname === "/api/menu/categories") data = [{ id: "food", name: "Makanan" }, { id: "drinks", name: "Minuman" }];
@@ -31,9 +32,11 @@ for (const width of [320, 390, 768, 1440]) {
     await expect(page.getByRole("heading", { name: "Ruang Rasa" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: `artifacts/ui/restaurant-menu-${width}.png`, fullPage: true });
-    await expect(page.locator(".restaurant-masthead")).toHaveCSS("background-color", "rgb(20, 43, 69)");
-    expect(await page.locator(".restaurant-greeting h2").evaluate(node => getComputedStyle(node).fontFamily)).not.toMatch(/Georgia|Times/);
-    expect((await page.locator(".restaurant-header").boundingBox())!.height).toBeLessThan(520);
+    await expect(page.locator(".restaurant-orderbar")).toHaveCount(0);
+    await expect(page.getByRole("button",{name:"Makan di tempat",exact:true})).toHaveCount(0);
+    expect(await page.locator(".restaurant-brand h1").evaluate(node => getComputedStyle(node).fontFamily)).not.toMatch(/Georgia|Times/);
+    expect((await page.locator(".restaurant-header").boundingBox())!.height).toBeLessThan(220);
+    expect((await page.locator(".restaurant-product").first().boundingBox())!.y).toBeLessThan(450);
     const dock = page.getByRole("navigation", { name: "Navigasi utama" });
     await page.getByRole("button", { name: "Tambah Kopi Susu Gula Aren", exact: true }).click();
     await dock.getByRole("link", { name: "Cari", exact: true }).click();
@@ -81,7 +84,7 @@ test("preferences persist, and payment fits a short screen", async ({ page }) =>
   await expect(page.locator("html")).toHaveAttribute("data-glass", "solid");
   await page.screenshot({ path: "artifacts/ui/settings-dark.png", fullPage: true });
   await page.goto("/menu?store=ui-store&table=1");
-  await expect(page.locator(".restaurant-menu")).toHaveCSS("background-color", "rgb(8, 19, 33)");
+  await expect(page.locator(".restaurant-menu")).toHaveCSS("background-color", "rgb(12, 24, 40)");
   await page.screenshot({ path: "artifacts/ui/menu-navy-dark.png", fullPage: true });
   await page.getByRole("button", { name: "Tambah Kopi Susu Gula Aren", exact: true }).click();
   await page.getByRole("link", { name: "Keranjang, 1 item" }).click();
@@ -94,6 +97,26 @@ test("preferences persist, and payment fits a short screen", async ({ page }) =>
   await expect(payment.getByRole("button", { name: "Lanjutkan pembayaran" })).toBeInViewport();
   await page.keyboard.press("Escape");
   await expect(payment).not.toBeVisible();
+});
+
+test("checkout shows server costs before any payment request", async ({page})=>{
+ let created=0,payments=0;
+ await page.route("**/api/orders",route=>{created++;return route.fulfill({json:{data:{order_id:"fixture-order",order_number:42,subtotal:28000,tax_amount:3080,service_charge:1400,total_amount:32480}}});});
+ await page.route("**/api/payment/cash",route=>{payments++;return route.fulfill({status:503,json:{error:"Fixture: pembayaran belum tersedia"}});});
+ await page.goto("/menu?store=ui-store&table=7");
+ await page.getByRole("button",{name:"Tambah Kopi Susu Gula Aren",exact:true}).click();
+ await page.getByRole("link",{name:"Keranjang, 1 item"}).click();
+ await page.getByRole("button",{name:"Lanjut ke pembayaran",exact:true}).click();
+ const dialog=page.getByRole("dialog",{name:"Pilih pembayaran"});
+ await dialog.getByRole("button",{name:/Tunai di Kasir/}).click();
+ await dialog.getByRole("button",{name:"Lanjutkan pembayaran",exact:true}).click();
+ await expect(dialog.getByText("Pesanan #42 tersimpan dan belum dibayar.",{exact:false})).toBeVisible();
+ await expect(dialog.getByText("Rp 3.080",{exact:true})).toBeVisible();
+ await expect(dialog.getByText("Rp 1.400",{exact:true})).toBeVisible();
+ expect(created).toBe(1);expect(payments).toBe(0);
+ await dialog.getByRole("button",{name:"Konfirmasi pesanan Rp 32.480",exact:true}).click();
+ await expect(page.getByText("Fixture: pembayaran belum tersedia")).toBeVisible();
+ expect(created).toBe(1);expect(payments).toBe(1);
 });
 
 test("glass navigation supports drag, cancellation and keyboard links", async ({ page }) => {

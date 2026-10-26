@@ -21,6 +21,7 @@ before(async () => {
   }
   store = randomUUID(); otherStore = randomUUID(); category = randomUUID(); table = randomUUID(); menu = randomUUID(); policy = randomUUID();
   await db.exec(await readFile("MIGRATION_KIOSK_HANDOFF.sql", "utf8"));
+  for (const file of ["MIGRATION_RESTAURANT_ADS.sql", "MIGRATION_TELEGRAM_RESERVATION_OTP.sql", "MIGRATION_TELEGRAM_OTP_AUTO_DELIVERY.sql", "MIGRATION_SECURITY_20261024.sql", "MIGRATION_TRANSACTIONS_20261024.sql", "MIGRATION_CHECKOUT_20261024.sql", "MIGRATION_OPERATIONS_20261024.sql"]) await db.exec(await readFile(file, "utf8"));
   await db.query("INSERT INTO stores(id,name,address,phone,email,tax_rate) VALUES($1,'Test branch','Test','0','fixture@example.test',0.11),($2,'Other branch','Test','0','other@example.test',0.11)", [store, otherStore]);
   await db.query("INSERT INTO categories(id,store_id,name) VALUES($1,$2,'Coffee')", [category, store]);
   await db.query("INSERT INTO tables(id,store_id,number) VALUES($1,$2,1)", [table, store]);

@@ -5,6 +5,7 @@ import { normalizeOptionGroups } from "@/lib/menu-options";
 import { normalizeMenuDays, normalizeMenuSchedule, normalizeMenuTags, normalizeMenuTranslations } from "@/lib/menu-metadata";
 import {writeAudit} from "@/lib/audit";
 import { isMenuScheduledNow } from "@/lib/menu-schedule";
+import { PUBLIC_MENU_FIELDS } from "@/lib/public-fields";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export async function GET(request: NextRequest) {
     const categoryId = searchParams.get("categoryId");
     const featured = searchParams.get("featured");
     const managementView = searchParams.get("management") === "true" && isStaff(user);
+    if (searchParams.get("management") === "true" && (!managementView || !storeId || !hasStoreAccess(user, storeId))) return NextResponse.json({ error: "Akses cabang ditolak" }, { status: 403 });
     let timezone = "Asia/Jakarta";
     if (storeId && !managementView) {
       const { data: store } = await supabaseAdmin.from("stores").select("timezone").eq("id", storeId).maybeSingle();
@@ -24,7 +26,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from("menu_items")
-      .select("*")
+      .select((managementView ? "*" : PUBLIC_MENU_FIELDS) as string)
       .order("display_order", { ascending: true });
 
     if (storeId) query = query.eq("store_id", storeId);
@@ -37,7 +39,7 @@ export async function GET(request: NextRequest) {
         .or("track_stock.eq.false,stock_quantity.gt.0");
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.returns<import("@/types").MenuItem[]>();
     if (error) throw error;
 
     const visible = managementView ? data ?? [] : (data ?? []).filter(item => isMenuScheduledNow(item, timezone));

@@ -3,6 +3,9 @@ import { getAuthUser, hasStoreAccess, isOwnerOrAdmin } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 
+import { boundedJson, sameOrigin, requestBudget } from "@/lib/request-security";
+import { guestSession } from "@/lib/guest-session";
+
 export const dynamic = "force-dynamic";
 const fail = (message: string, status = 400) => NextResponse.json({ error: message }, { status });
 
@@ -20,19 +23,23 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const user = await getAuthUser(request);
-  const body = await request.json().catch(() => ({}));
+  if (!sameOrigin(request)) return fail("Origin tidak valid", 403);
+  const limited = await requestBudget(request, "refund", 10, 60, user?.userId || guestSession(request) || undefined);
+  if (limited) return limited;
+  let body;
+  try { body = await boundedJson(request, 4096); } catch { return fail("Permintaan tidak valid"); }
   const orderId = String(body.orderId || "");
 
   if (body.action === "request") {
     if (!orderId) return fail("Order diperlukan", 400);
-    const sessionId = String(body.sessionId || "");
+    const sessionId = guestSession(request);
     const { data: order } = await supabaseAdmin.from("orders").select("id,store_id,user_id,anonymous_session_id,total_amount,payment_status,payment_method,status")
       .eq("id", orderId).maybeSingle();
     const ownsOrder = Boolean(order && ((user?.userId && user.userId === order.user_id) || (sessionId && sessionId === order.anonymous_session_id)));
     if (!order || !ownsOrder || order.payment_status !== "paid") return fail("Pesanan tidak ditemukan, bukan milik sesi ini, atau belum dibayar", 404);
     const amount = Math.round(Number(body.amount || order.total_amount));
     const reason = String(body.reason || "").trim().slice(0, 1000);
-    if (!reason || amount < 1 || amount > Number(order.total_amount)) return fail("Nominal dan alasan refund tidak valid");
+    if (!reason || !Number.isSafeInteger(amount) || amount < 1 || amount > Number(order.total_amount)) return fail("Nominal dan alasan refund tidak valid");
     const { data: previousRefunds, error: historyError } = await supabaseAdmin.from("refund_requests").select("amount,status").eq("order_id", order.id).in("status", ["requested", "approved", "processing", "completed"]);
     if (historyError) return fail(historyError.message, 500);
     const alreadyRefundedOrHeld = (previousRefunds || []).reduce((sum, row) => sum + Number(row.amount), 0);
@@ -63,15 +70,8 @@ export async function POST(request: NextRequest) {
     if (decision === "manual_complete") {
       if (order.payment_method === "snap") return fail("Pembayaran Snap harus diproses melalui Midtrans", 409);
       if (!reviewerNote) return fail("Catat bukti atau keterangan pengembalian dana manual");
-      const { data, error } = await supabaseAdmin.from("refund_requests").update({ status: "completed", reviewer_id: user!.userId, reviewer_note: reviewerNote, reviewed_at: new Date().toISOString(), completed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", requestId).eq("status", "requested").select().maybeSingle();
-      if (error || !data) return fail(error?.message || "Permintaan sudah berubah", 409);
-      const { data: completedRefunds } = await supabaseAdmin.from("refund_requests").select("amount").eq("order_id", refund.order_id).eq("status", "completed");
-      const cumulativelyRefunded = (completedRefunds || []).reduce((sum, row) => sum + Number(row.amount), 0);
-      if (cumulativelyRefunded >= Number(order.total_amount)) {
-        await supabaseAdmin.from("payments").update({ status: "refunded", updated_at: new Date().toISOString() }).eq("order_id", refund.order_id);
-        await supabaseAdmin.from("orders").update({ payment_status: "refunded", updated_at: new Date().toISOString() }).eq("id", refund.order_id);
-      }
-      await writeAudit(user!, refund.store_id, "refund.manual_complete", "refund_request", requestId, refund, { status: data.status, amount: refund.amount, reviewerNote });
+      const { data, error } = await supabaseAdmin.rpc("complete_manual_refund", { p_refund: requestId, p_actor: user!.userId, p_note: reviewerNote });
+      if (error) return fail("Refund tidak dapat diselesaikan; periksa status pesanan dan jumlah yang telah dikembalikan.", 409);
       return NextResponse.json({ data });
     }
 
@@ -83,19 +83,19 @@ export async function POST(request: NextRequest) {
     const baseUrl = isProduction ? "https://api.midtrans.com" : "https://api.sandbox.midtrans.com";
     const { data: payment } = await supabaseAdmin.from("payments").select("transaction_id,midtrans_order_id").eq("order_id", refund.order_id).maybeSingle();
     const transactionTarget = payment?.transaction_id || payment?.midtrans_order_id || order.id;
-    const response = await fetch(`${baseUrl}/v2/${encodeURIComponent(transactionTarget)}/refund`, {
+    const {data:reserved,error:reserveError}=await supabaseAdmin.from("refund_requests").update({status:"processing",reviewer_id:user!.userId,reviewed_at:new Date().toISOString(),reviewer_note:reviewerNote,midtrans_refund_key:refundKey}).eq("id",requestId).eq("status","requested").select("id").maybeSingle();
+    if(reserveError || !reserved)return fail("Refund sedang diproses oleh permintaan lain",409);
+    let response: Response;
+    try { response = await fetch(`${baseUrl}/v2/${encodeURIComponent(transactionTarget)}/refund`, {
       method: "POST",
       headers: { Authorization: `Basic ${Buffer.from(`${serverKey}:`).toString("base64")}`, "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ refund_key: refundKey, amount: Math.round(Number(refund.amount)), reason: "other" }),
-      cache: "no-store",
-    });
+      cache: "no-store", signal:AbortSignal.timeout(15000),
+    }); } catch { return fail("Status pengiriman refund belum pasti. Dana tetap ditahan untuk rekonsiliasi; jangan mengirim refund baru.",502); }
     const midtransResult = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      await supabaseAdmin.from("refund_requests").update({ status: "failed", reviewer_id: user!.userId, reviewer_note: String(midtransResult.status_message || "Midtrans menolak refund").slice(0, 1000), reviewed_at: new Date().toISOString(), midtrans_refund_key: refundKey, midtrans_response: midtransResult, updated_at: new Date().toISOString() }).eq("id", requestId).eq("status", "requested");
-      return fail(String(midtransResult.status_message || "Refund gagal diproses Midtrans"), 502);
-    }
-    const { data, error } = await supabaseAdmin.from("refund_requests").update({ status: "processing", reviewer_id: user!.userId, reviewer_note: reviewerNote, reviewed_at: new Date().toISOString(), midtrans_refund_key: refundKey, midtrans_response: midtransResult, updated_at: new Date().toISOString() }).eq("id", requestId).eq("status", "requested").select().maybeSingle();
-    if (error || !data) return fail("Refund telah dikirim ke Midtrans tetapi status lokal perlu direkonsiliasi", 502);
+    if(!response.ok)return fail("Refund perlu diperiksa ke Midtrans. Permintaan tetap berstatus processing untuk mencegah refund ganda.",502);
+    const {data,error}=await supabaseAdmin.from("refund_requests").update({midtrans_response:midtransResult,updated_at:new Date().toISOString()}).eq("id",requestId).eq("status","processing").select().maybeSingle();
+    if(error || !data)return fail("Refund terkirim; status lokal perlu direkonsiliasi",502);
     await writeAudit(user!, refund.store_id, "refund.approve_and_submit", "refund_request", requestId, refund, { status: data.status, refundKey, amount: refund.amount });
     return NextResponse.json({ data });
   }

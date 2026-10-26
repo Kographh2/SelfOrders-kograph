@@ -37,6 +37,7 @@ const VALID_NEXT: Partial<Record<OrderStatus, OrderStatus>> = {
 
 export default function OrdersPage() {
   const { token, user } = useAuth();
+  const [page,setPage]=useState(1),[hasMore,setHasMore]=useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<OrderStatus | "all">("all");
@@ -50,18 +51,20 @@ export default function OrdersPage() {
     try {
       const storeId = user?.store_id ?? "";
       const params = new URLSearchParams();
+      params.set("page",String(page));
       if (storeId) params.set("storeId", storeId);
       if (activeFilter !== "all") params.set("status", activeFilter);
 
       const res = await fetch(`/api/orders?${params}`, { headers: getAuthHeaders(token) });
       if (res.ok) {
         const r = await res.json();
-        setOrders(r.data ?? []);
-      }
+        setOrders(r.data ?? []);setHasMore(Boolean(r.pagination?.hasMore));
+      } else { throw new Error("Gagal memuat pesanan"); }
     } catch { toast.error("Gagal memuat pesanan"); }
     finally { setIsLoading(false); }
-  }, [token, user?.store_id, activeFilter]);
+  }, [token, user?.store_id, activeFilter,page]);
 
+  useEffect(()=>{setPage(1);},[activeFilter]);
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
   const updateStatus = async (orderId: string, status: OrderStatus) => {
@@ -83,6 +86,18 @@ export default function OrdersPage() {
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  const reconcile = async (orderId: string) => {
+    setUpdatingId(orderId);
+    try {
+      const response = await fetch("/api/payment/reconcile", { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders(token) }, body: JSON.stringify({ orderId }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      toast.success(result.message);
+      await fetchOrders();
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Gagal memeriksa pembayaran"); }
+    finally { setUpdatingId(null); }
   };
 
   const cancelOrder = async (orderId: string) => {
@@ -227,8 +242,9 @@ export default function OrdersPage() {
                         )}
 
                         {/* Actions */}
-                        <div className="flex gap-2 pt-1">
-                          {nextStatus && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {order.payment_method === "snap" && <button onClick={() => reconcile(order.id)} disabled={isUpdating} className="rounded-xl border px-4 py-2.5 text-sm disabled:opacity-50">Periksa pembayaran</button>}
+                          {nextStatus && order.payment_status === "paid" && (
                             <motion.button
                               whileTap={{ scale: 0.97 }}
                               onClick={() => updateStatus(order.id, nextStatus)}
@@ -272,6 +288,7 @@ export default function OrdersPage() {
         onConfirm={() => cancelTarget && cancelOrder(cancelTarget)}
         onCancel={() => setCancelTarget(null)}
       />
+      <div className="flex items-center justify-center gap-4 p-6"><button disabled={page===1||isLoading} onClick={()=>setPage(value=>value-1)} className="rounded-xl border px-4 py-3 disabled:opacity-40">Sebelumnya</button><span>Halaman {page}</span><button disabled={!hasMore||isLoading} onClick={()=>setPage(value=>value+1)} className="rounded-xl border px-4 py-3 disabled:opacity-40">Berikutnya</button></div>
     </PageTransition>
   );
 }

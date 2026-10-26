@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { getAuthUser, isStaff, hasStoreAccess, isOwnerOrAdmin } from "@/lib/auth";
 import { notifyOrderStatus } from "@/lib/push-notifications";
+import { writeAudit } from "@/lib/audit";
 import { finalizeLoyaltyRedemption } from "@/lib/loyalty-order";
 
 type Params = { params: Promise<{ orderId: string }> };
@@ -30,7 +31,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     const { data: order, error: fetchErr } = await supabaseAdmin
       .from("orders")
-      .select("id, store_id, status")
+      .select("id, store_id, status,payment_status")
       .eq("id", orderId)
       .single();
 
@@ -42,6 +43,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
+    if(status!=="cancelled" && order.payment_status!=="paid")return NextResponse.json({error:"Pembayaran harus lunas sebelum pesanan diproses"},{status:409});
     const allowed = VALID_TRANSITIONS[order.status] ?? [];
     if (!allowed.includes(status)) {
       return NextResponse.json(
@@ -63,12 +65,13 @@ export async function PUT(request: NextRequest, { params }: Params) {
         ...(status === "completed" ? { completed_by: user!.userId, call_active: false } : {}),
         updated_at: new Date().toISOString(),
       })
-      .eq("id", orderId)
+      .eq("id", orderId).eq("status",order.status)
       .select()
       .single();
 
     if (error) throw error;
 
+    await writeAudit(user!,order.store_id,"order.status","order",orderId,{status:order.status},{status});
     await notifyOrderStatus(orderId, status);
     if (status === "cancelled") await finalizeLoyaltyRedemption(orderId, "failed");
 

@@ -1,5 +1,11 @@
 # Consumer pages and Liquid Glass navigation
 
+## Update — 25 October 2026
+
+The menu now uses a compact soft navy/white layout. The order-mode/branch strip was removed from the menu header; required order controls remain in the cart. Checkout displays final server-calculated costs before a separate payment confirmation. Profile includes active orders and settings includes server-backed session management. Liquid Glass direct navigation is preserved.
+
+Latest local result: **15/15 consumer browser tests pass** at 320/390/768/1440 px, including short-screen payment, dark preferences, drag/keyboard navigation, ads, offline recovery and the checkout confirmation boundary. See [the remediation and deployment notes](REMEDIATION_2026-10-24.md) for database requirements and the full validation record. Results below describe earlier iterations.
+
 Navigation now opens real routes: `/menu`, `/search`, `/cart`, and `/profile`. `/settings` is accessible from the profile. The profile has identity, order/wallet/reward shortcuts, account information, staff dashboard access, help, and explicit logout confirmation. There is no account dropdown in the navbar.
 
 The shared navbar stays mounted between these routes. A subtle selection stays visible at rest. On pointer contact the glass lens appears and expands, follows a horizontal drag, then fades after release; cancellation, pointer exit, and window blur clear the pressed state. The destination commits on drag release. Keyboard links support the pressed feedback too. Reduced-motion preferences remove the spring expansion. Normal links still support keyboard activation, browser back/forward, and opening in another tab. QR scanning is a separate action. CSS materials adapt to dark mode, reduced transparency, increased contrast, and unsupported backdrop filtering.

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requestBudget, boundedJson, sameOrigin } from "@/lib/request-security";
 import { normalizePhone } from "@/lib/reservation-phone";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { TelegramGatewayError, telegramGatewayCall } from "@/lib/telegram-gateway";
@@ -22,7 +23,9 @@ function gatewayErrorResponse(error: unknown) {
 export async function POST(request: NextRequest) {
   let challengeId = "";
   try {
-    const body = await request.json();
+    if(!sameOrigin(request))return NextResponse.json({error:"Origin ditolak"},{status:403});
+    const limited=await requestBudget(request,"otp-send",6,900);if(limited)return limited;
+    const body = await boundedJson(request,4096);
     if (body.consent !== true) {
       return NextResponse.json({ error: "Setujui pengiriman kode verifikasi melalui Telegram terlebih dahulu." }, { status: 400 });
     }
@@ -31,13 +34,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Format nomor HP tidak valid." }, { status: 400 });
     }
 
-    const since = new Date(Date.now() - 15 * 60_000).toISOString();
-    const { count, error: countError } = await supabaseAdmin.from("telegram_reservation_otps")
-      .select("id", { count: "exact", head: true }).eq("phone", phone).gte("created_at", since);
-    if (countError) throw countError;
-    if ((count || 0) >= 3) {
-      return NextResponse.json({ error: "Batas permintaan kode tercapai. Coba lagi dalam 15 menit." }, { status: 429 });
-    }
+    const phoneBudget=await requestBudget(request,"otp-phone",3,900,phone);if(phoneBudget)return phoneBudget;
+    const globalBudget=await requestBudget(request,"otp-cost",Math.max(1,Math.min(500,Number(process.env.OTP_HOURLY_BUDGET)||50)),3600,"global");if(globalBudget)return globalBudget;
 
     const { error: cancelError } = await supabaseAdmin.from("telegram_reservation_otps").update({ status: "cancelled" })
       .eq("phone", phone).in("status", ["awaiting_confirmation", "awaiting_link", "awaiting_contact", "gateway_pending", "sent"]);

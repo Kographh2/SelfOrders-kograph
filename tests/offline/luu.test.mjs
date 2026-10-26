@@ -1,0 +1,35 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {createRequire} from 'node:module';
+import ts from 'typescript';
+import React from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {load} from '../security/helpers.mjs';
+const require=createRequire(import.meta.url);
+const art=JSON.parse(readFileSync('src/lib/mascot/luu-art.json','utf8'));
+const runtime=load('src/lib/mascot/luu-runtime.js');
+test('Luu renders complete geometry on server, with independent ID and filter references',()=>{
+ const source=readFileSync('src/components/LuuMascot.tsx','utf8');
+ const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true,target:ts.ScriptTarget.ES2020}}).outputText;
+ const mod={exports:{}};const imports={'@/lib/mascot/luu-art.json':art,'@/lib/mascot/luu-runtime':runtime,'@/contexts/PreferencesContext':{usePreferences:()=>({preferences:{reduceMotion:false}})}};
+ new Function('module','exports','require',code)(mod,mod.exports,name=>imports[name]||require(name));
+ const Mascot=mod.exports.default;
+ const html=renderToStaticMarkup(React.createElement('div',null,React.createElement(Mascot,{pose:'drained'}),React.createElement(Mascot,{pose:'thinking'})));
+ const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]);assert.equal(ids.length,new Set(ids).size);
+ for(const match of html.matchAll(/url\(#([^)]+)\)/g))assert.ok(ids.includes(match[1]));
+ assert.doesNotMatch(html,/NaN|<button|<script/);assert.match(html,/data-luu-part="bodyFill"/);
+ assert.match(art.drained,/<feColorMatrix[^>]*values="0"/);
+ assert.deepEqual(Object.keys(art),['drained','thinking','confused','celebrating']);
+});
+test('rig respects reduced motion and cleans frames, observers and listeners',()=>{
+ const nodes={};for(const m of art.drained.matchAll(/data-luu-part="([^"]+)"/g))nodes[m[1]]={getAttribute:()=>null,setAttribute(){},children:[]};
+ const listeners=new Set(),frames=new Set();let id=0,disconnected=false;
+ const events={addEventListener:(name,fn)=>listeners.add(fn),removeEventListener:(name,fn)=>listeners.delete(fn)};
+ const media={...events,matches:false};
+ const win={matchMedia:()=>media,requestAnimationFrame:()=>{frames.add(++id);return id;},cancelAnimationFrame:key=>frames.delete(key),IntersectionObserver:class{observe(){}disconnect(){disconnected=true;}}};
+ const svg={querySelector:selector=>nodes[selector.match(/"([^"]+)"/)[1]],ownerDocument:{...events,hidden:false,defaultView:win}};
+ const rig=runtime.createLuu(svg,{pose:'drained'});assert.equal(frames.size,1);assert.equal(listeners.size,1);
+ rig.destroy();assert.equal(frames.size,0);assert.equal(listeners.size,0);assert.equal(disconnected,true);
+ const still=runtime.createLuu(svg,{pose:'drained',reducedMotion:true});assert.equal(frames.size,0);still.destroy();
+});

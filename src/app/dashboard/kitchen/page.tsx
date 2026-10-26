@@ -44,13 +44,14 @@ export default function KitchenPage() {
     if (!token) return;
     try {
       setIsLoading(true);
-      const res = await fetch(
-        `/api/orders?storeId=${storeId}`,
-        { headers: getAuthHeaders(token) }
-      );
-      if (!res.ok) throw new Error();
-      const r = await res.json();
-      const nextOrders = r.data ?? [];
+      const nextOrders:Order[]=[];
+      for(let page=1;page<=100;page++){
+        const res=await fetch(`/api/orders?storeId=${storeId}&active=1&limit=100&page=${page}`,{headers:getAuthHeaders(token)});
+        if(!res.ok)throw new Error();
+        const result=await res.json();nextOrders.push(...(result.data||[]));
+        if(!result.pagination?.hasMore)break;
+        if(page===100)throw new Error("Terlalu banyak pesanan aktif");
+      }
       const newlyPaid = knownOrderPayments.current && autoPrint
         ? nextOrders.filter((order: Order) => order.payment_status === "paid" && knownOrderPayments.current?.get(order.id) !== "paid")
         : [];
@@ -70,26 +71,12 @@ export default function KitchenPage() {
     if (token) fetchOrders();
   }, [fetchOrders, token]);
 
-  // Realtime subscription
-  useEffect(() => {
-    if (!storeId) return;
-
-    channelRef.current = supabase
-      .channel(`kitchen-orders-${storeId}`)
-      .on("postgres_changes", {
-        event: "*",
-        schema: "public",
-        table: "orders",
-        filter: `store_id=eq.${storeId}`,
-      }, () => {
-        fetchOrders();
-      })
-      .subscribe();
-
-    return () => {
-      channelRef.current?.unsubscribe();
-    };
-  }, [storeId, fetchOrders]);
+  // Refresh through the session-authorized API; no financial rows on public realtime.
+  useEffect(()=>{
+    if(!storeId || !token)return;
+    const timer=setInterval(()=>{if(document.visibilityState==="visible")void fetchOrders();},15000);
+    return ()=>clearInterval(timer);
+  },[storeId,token,fetchOrders]);
 
   const updateStatus = async (orderId: string, newStatus: OrderStatus) => {
     setUpdatingId(orderId);

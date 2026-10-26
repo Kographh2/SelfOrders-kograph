@@ -4,6 +4,7 @@ import { getAuthUser, isStaff, isOwnerOrAdmin, hasStoreAccess } from "@/lib/auth
 import { notifyOrderStatus } from "@/lib/push-notifications";
 import { writeAudit } from "@/lib/audit";
 import { finalizeLoyaltyRedemption } from "@/lib/loyalty-order";
+import { CUSTOMER_ORDER_FIELDS } from "@/lib/public-fields";
 
 type Params = { params: Promise<{ orderId: string }> };
 
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest, { params }: Params) {
 
     const { data: order, error } = await supabaseAdmin
       .from("orders")
-      .select("*, table:tables(id,number,store_id), order_items(*, menu_item:menu_items(id,name,price)), payments(*)")
+      .select(CUSTOMER_ORDER_FIELDS)
       .eq("id", orderId)
       .single();
 
@@ -75,6 +76,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     const body = await request.json();
     const { status, notes } = body;
 
+    if(status && status!=="cancelled" && current.payment_status!=="paid")return NextResponse.json({error:"Pembayaran harus lunas sebelum pesanan diproses"},{status:409});
     // Validate status transition
     if (status && status !== current.status) {
       const allowed = VALID_STATUS_TRANSITIONS[current.status] ?? [];
@@ -103,7 +105,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     const { data: order, error } = await supabaseAdmin
       .from("orders")
       .update(updatePayload)
-      .eq("id", orderId)
+      .eq("id", orderId).eq("status",current.status)
       .select()
       .single();
 

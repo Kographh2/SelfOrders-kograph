@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { requestBudget, boundedJson, sameOrigin } from "@/lib/request-security";
 import { normalizePhone } from "@/lib/reservation-phone";
 import { TelegramGatewayError, telegramGatewayCall } from "@/lib/telegram-gateway";
 import { supabaseAdmin } from "@/lib/supabase-server";
@@ -9,7 +10,9 @@ const otpHash = (id: string, code: string, secret: string) => createHmac("sha256
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    if(!sameOrigin(request))return NextResponse.json({error:"Origin ditolak"},{status:403});
+    const limited=await requestBudget(request,"otp-verify",30,60);if(limited)return limited;
+    const body = await boundedJson(request,4096);
     const phone = normalizePhone(String(body.phone || ""));
     const code = String(body.code || "").trim();
     if (!/^\+[1-9]\d{7,14}$/.test(phone) || !/^\d{6}$/.test(code)) {
@@ -24,11 +27,8 @@ export async function POST(request: NextRequest) {
     if (challengeError) throw challengeError;
     if (!challenge) return NextResponse.json({ error: "Kode tidak aktif atau sudah kedaluwarsa. Minta kode baru." }, { status: 400 });
 
-    if (challenge.attempts >= 5) {
-      await supabaseAdmin.from("telegram_reservation_otps").update({ status: "expired" }).eq("id", challenge.id).eq("status", "sent");
-      return NextResponse.json({ error: "Batas percobaan habis. Minta kode baru." }, { status: 429 });
-    }
-
+    const {data:attempts,error:attemptError}=await supabaseAdmin.rpc("reserve_otp_attempt",{p_id:challenge.id});
+    if(attemptError || !attempts)return NextResponse.json({error:"Batas percobaan habis. Minta kode baru."},{status:429});
     let codeIsValid = false;
     if (challenge.gateway_request_id) {
       let result: GatewayVerification;
@@ -51,9 +51,6 @@ export async function POST(request: NextRequest) {
         await supabaseAdmin.from("telegram_reservation_otps").update({ status: "expired" }).eq("id", challenge.id).eq("status", "sent");
         return NextResponse.json({ error: "Kode kedaluwarsa atau batas percobaan tercapai. Minta kode baru." }, { status: 400 });
       } else if (gatewayStatus === "code_invalid") {
-        const attempts = challenge.attempts + 1;
-        await supabaseAdmin.from("telegram_reservation_otps").update({ attempts, ...(attempts >= 5 ? { status: "expired" } : {}) })
-          .eq("id", challenge.id).eq("status", "sent");
         return NextResponse.json({ error: attempts >= 5 ? "Batas percobaan habis. Minta kode baru." : `Kode OTP salah. Sisa percobaan: ${5 - attempts}.` }, { status: 400 });
       } else {
         return NextResponse.json({ error: "Kode belum dapat diverifikasi. Pastikan kode benar dan coba lagi." }, { status: 400 });
@@ -67,9 +64,6 @@ export async function POST(request: NextRequest) {
       if (expected.length === actual.length && timingSafeEqual(expected, actual)) {
         codeIsValid = true;
       } else {
-        const attempts = challenge.attempts + 1;
-        await supabaseAdmin.from("telegram_reservation_otps").update({ attempts, ...(attempts >= 5 ? { status: "expired" } : {}) })
-          .eq("id", challenge.id).eq("status", "sent");
         return NextResponse.json({ error: attempts >= 5 ? "Batas percobaan habis. Minta kode baru." : `Kode OTP salah. Sisa percobaan: ${5 - attempts}.` }, { status: 400 });
       }
     }

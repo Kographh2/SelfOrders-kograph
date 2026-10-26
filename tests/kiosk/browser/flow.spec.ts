@@ -98,6 +98,7 @@ test("landscape: payment, QR handoff to another device, confirmed scan and ten-s
   expect(mock.requests[0]).toMatchObject({ tableId, expectedTotal: 27750, mode: "dine_in", items: [{ menu_item_id: itemId, quantity: 1, option_ids: ["large"], notes: "Sedikit es" }], policyIds: [policyId] });
   await page.getByRole("button", { name: "Buka pembayaran" }).click();
   await expect(page.getByRole("heading", { name: "Pembayaran berhasil" })).toBeVisible();
+  await expect(page.locator('[data-luu-pose="celebrating"]')).toBeVisible();
   expect(mock.tokens()).toBe(1);
   await expect(page.getByText("042", { exact: true })).toBeVisible();
   await page.screenshot({ path: "test-results/kiosk-confirmation.png", fullPage: true });
@@ -219,6 +220,7 @@ test("Snap success callback alone cannot confirm a pending server payment", asyn
   await expect(page.getByRole("button", { name: "Periksa status" })).toBeEnabled();
   await expect(page.getByRole("heading", { name: "Selesaikan pembayaran Anda." })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Pembayaran berhasil" })).toHaveCount(0);
+  await expect(page.locator('[data-luu-pose="celebrating"]')).toHaveCount(0);
   await expect(page.getByRole("img", { name: "QR untuk membuka waiting page pesanan Anda" })).toHaveCount(0);
   await page.screenshot({ path: "test-results/kiosk-payment-pending.png", fullPage: true });
 });
@@ -254,7 +256,8 @@ test("real HTTP: hostname rewrite, signed cookie, CSRF and UID-only login reject
   const cookie = session.headers()["set-cookie"];
   expect(cookie).toContain("HttpOnly"); expect(cookie).toContain("SameSite=strict"); expect(cookie).toContain("Secure"); expect(cookie).toContain("Path=/api/kiosk");
   const unknown = await request.post("/api/kiosk/session", { data: { station: "unknown" }, headers: { Origin: "http://localhost:3127" } }); expect(unknown.status()).toBe(503);
-  const login = await request.post("/api/auth/login", { data: { supabaseUid: storeId } }); expect(login.status()).toBe(401);
+  const loginCsrf = await request.post("/api/auth/login", { data: { supabaseUid: storeId } }); expect(loginCsrf.status()).toBe(403);
+  const login = await request.post("/api/auth/login", { data: { supabaseUid: storeId }, headers: { Origin: "http://localhost:3127" } }); expect(login.status()).toBe(401);
   const cron = await request.get("/api/kiosk/maintenance"); expect(cron.status()).toBe(401);
   expect((await request.get("/api/kiosk/settings")).status()).toBe(403);
   expect((await request.put("/api/kiosk/settings", { data: { storeId, enabled: true, isDefault: true } })).status()).toBe(403);
