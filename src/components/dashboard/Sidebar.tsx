@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import LuuLogo from "@/components/LuuLogo";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -84,12 +85,7 @@ export default function Sidebar() {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className={`flex items-center gap-3 px-4 py-5 border-b border-navy-800 ${collapsed && !mobileOpen ? "justify-center" : ""}`}>
-        <div className="w-8 h-8 bg-gold rounded-xl flex items-center justify-center flex-shrink-0">
-          <UtensilsCrossed className="w-4 h-4 text-navy-950" />
-        </div>
-        {(!collapsed || mobileOpen) && (
-          <span className="font-display font-bold text-bone-50 text-sm">SelfOrder</span>
-        )}
+        <LuuLogo width={collapsed&&!mobileOpen?40:132}/>
       </div>
 
       {/* Nav */}

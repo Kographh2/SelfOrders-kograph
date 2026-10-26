@@ -28,7 +28,8 @@ test("navigation network failures serve a self-contained offline game", async ()
   const body = await response.text();
   assert.match(body, /data-recovery-mode="offline"/);
   assert.match(body, /Pasangkan menunya/);
-  assert.doesNotMatch(body, /<script[^>]+src=|<link[^>]+rel="stylesheet"|<img /);
+  assert.doesNotMatch(body, /<script[^>]+src=|<link[^>]+rel="stylesheet"/);
+  for(const image of body.matchAll(/<img[^>]+src="([^"]+)"/g))assert.match(image[1],/^data:image\/webp;base64,/);
 });
 test("missing cached document returns an honest reconnect response", async () => {
   const response = await worker(async () => { throw new TypeError("Network failed"); }, false)({});

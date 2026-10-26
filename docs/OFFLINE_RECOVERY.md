@@ -38,6 +38,6 @@ These are local tests with fixture APIs and Chrome. Live database/payment integr
 
 - Isolated production build: passed, including TypeScript and lint checks. Existing image/font/hook lint warnings remain.
 - Offline unit and worker suite: 11 passed, including missing cached-document behavior.
-- Chrome UI suite: 20 passed (1.5 minutes), including 320/390/768/1440 px layouts, keyboard focus after recovery, stored notes, offline reload, timeout, access denial, and single-monitor behavior.
-- Chrome kiosk suite: 12 passed (59.6 seconds), including confirmed-payment Celebrating, absence of that pose while payment is pending, QR handoff, scan acknowledgement, ten-second reset, virtual keyboard, and late-response isolation.
+- Chrome UI suite after the Sleeping/logo update: 23 passed (1.6 minutes), including 320/390/768/1440 px layouts, keyboard focus after recovery, stored notes, offline reload, timeout, access denial, single-monitor behavior, 1x logo timing, real loading stages, animation cancellation, and a closed store in dark/reduced-motion mode.
+- Chrome kiosk suite after the logo update: 12 passed (1.1 minutes), including closed-store Sleeping, search Confused, confirmed-payment Celebrating, absence of that pose while payment is pending, QR handoff, scan acknowledgement, ten-second reset, virtual keyboard, and late-response isolation.
 - `git diff --check`: passed.

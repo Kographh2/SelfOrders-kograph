@@ -46,6 +46,7 @@ export default function MenuPageContent({ mode = "menu" }: { mode?: "menu" | "se
   const catalogRequest=useRef<AbortController|null>(null);
   const mounted=useRef(true);
   const [accessError,setAccessError]=useState(false);
+  const [loadStage,setLoadStage]=useState("Memuat informasi toko…");
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;catalogRequest.current?.abort();};},[]);
   const load=useCallback(async(silent=false,signal?:AbortSignal):Promise<boolean>=>{
     if(!ready||catalogRequest.current)return false;
@@ -53,7 +54,7 @@ export default function MenuPageContent({ mode = "menu" }: { mode?: "menu" | "se
     const abort=()=>controller.abort();signal?.addEventListener("abort",abort,{once:true});
     if(signal?.aborted)controller.abort();
     const timeout=setTimeout(abort,8000);
-    if(!silent)setLoading(true);
+    if(!silent){setLoading(true);setLoadStage("Memuat informasi toko…");}
     const read=async(url:string)=>{
       const response=await fetch(url,{cache:"no-store",signal:controller.signal});
       if(response.status===401||response.status===403)throw new Error("access");
@@ -66,6 +67,7 @@ export default function MenuPageContent({ mode = "menu" }: { mode?: "menu" | "se
       const available:StoreInfo[]=storesResult.data??[];setStoreOptions(available);
       if(!resolved){resolved=available[0]?.id||"";if(resolved){setActiveStoreId(resolved);setOrder(current=>({...current,storeId:resolved}));}}
       if(!resolved)throw new Error("Belum ada toko aktif");
+      if(!silent&&mounted.current)setLoadStage("Memuat menu dan ketersediaan…");
       const [s,c,m]=await Promise.all([read(`/api/stores/${resolved}`),read(`/api/menu/categories?storeId=${resolved}`),read(`/api/menu/items?storeId=${resolved}`)]);
       if(!mounted.current||controller.signal.aborted)return false;
       setStore(s.data);setCategories(c.data??[]);setItems(m.data??[]);setError("");setAccessError(false);return true;
@@ -109,10 +111,10 @@ export default function MenuPageContent({ mode = "menu" }: { mode?: "menu" | "se
   const sendTableRequest=async(requestType:string)=>{if(!tableNum||serviceBusy)return;setServiceBusy(true);try{const response=await fetch("/api/table-service",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({storeId,tableNumber:Number(tableNum),requestType})});const result=await response.json();if(!response.ok)throw new Error(result.error||"Permintaan gagal dikirim");setServiceOpen(false);toast.success(result.repeated?"Permintaan sejenis sedang ditangani":"Permintaan dikirim ke staf")}catch(error){toast.error(error instanceof Error?error.message:"Permintaan gagal dikirim")}finally{setServiceBusy(false)}};
   const featured=items.filter(x=>x.is_featured&&x.is_available).slice(0,5).map(item=>({...item,name:itemName(item),description:itemDescription(item)}));
   if(mode==="cart"&&ready&&cart.length===0)return <CartPageView storeName="" onCheckout={()=>{}}/>;
-  if(loading||!ready)return <MenuLoading/>;
+  if(loading||!ready)return <MenuLoading stage={loadStage}/>;
   if(error&&!accessError&&error!=="Belum ada toko aktif")return <RecoveryScreen mode="error" onRetry={signal=>load(true,signal)}/>;
   if(error)return <div className="grid min-h-screen place-items-center bg-[#f5f8ff] p-6 text-center"><div><AlertCircle className="mx-auto h-14 w-14 text-blue-600"/><h1 className="mt-4 text-xl font-black text-navy-950">Menu tidak dapat dibuka</h1><p className="mt-2 text-slate-500">{error}</p><button onClick={()=>void load()} className="mt-6 rounded-2xl bg-blue-600 px-6 py-3 font-bold text-white">Coba lagi</button></div></div>;
-  if(mode!=="cart"&&store?.is_open===false)return <main className="grid min-h-screen place-items-center bg-gradient-to-b from-navy-950 to-blue-950 p-6 text-white"><div className="max-w-md text-center"><div className="mx-auto grid h-20 w-20 place-items-center rounded-3xl bg-white/10"><Clock3 className="h-10 w-10 text-blue-300"/></div><p className="mt-6 text-xs font-bold uppercase tracking-[.25em] text-blue-300">{store.name}</p><h1 className="mt-3 text-3xl font-black">Toko sedang tutup</h1><p className="mt-3 text-blue-100">Kami belum menerima pesanan saat ini.</p>{store.next_open_label&&<p className="mt-2 font-bold">Buka kembali {store.next_open_label}</p>}<p className="mt-6 text-xs text-blue-200">Menu akan tersedia kembali saat toko buka.</p></div></main>;
+  if(mode!=="cart"&&store?.is_open===false)return <main className="store-closed"><div className="max-w-md"><LuuMascot pose="sleeping" size={230}/><p>{store.name}</p><h1>Toko sedang tutup</h1><p>Luu sedang istirahat. Kami belum menerima pesanan saat ini.</p>{store.next_open_label&&<p className="font-semibold">Buka kembali {store.next_open_label}</p>}<p className="text-sm">Halaman akan diperbarui saat toko buka.</p></div></main>;
   if(mode==="cart")return <><Toaster/><CartPageView storeName={store?.name||""} stores={storeOptions} lockedStore={Boolean(scannedStoreId)} onStoreChange={value=>{setCart([]);setActiveStoreId(value);setOrder(current=>({...current,storeId:value,table:"",reservation:""}))}} onCheckout={()=>{if(store?.is_open===false){toast.error("Toko sedang tutup");return;}if(orderType==="dine_in"&&!tableNum){toast.error("Scan QR meja sebelum checkout");setScannerOpen(true)}else if(orderType==="pickup"&&(!pickupAt||!Number.isFinite(new Date(pickupAt).getTime())||new Date(pickupAt).getTime()<=Date.now())){toast.error("Pilih waktu pengambilan yang akan datang")}else setPaymentOpen(true)}}/><QRScannerModal open={scannerOpen} onClose={()=>setScannerOpen(false)}/>{paymentOpen&&<PaymentModal isOpen={paymentOpen} onClose={()=>setPaymentOpen(false)} storeId={storeId} tableNumber={orderType==="dine_in"?tableNum:undefined} reservationToken={reservationToken||undefined} orderType={orderType} pickupAt={pickupAt} cartItems={cart} onPaymentComplete={()=>{setCart([]);setPaymentOpen(false)}}/>}</>;
   return <main className="restaurant-menu menu-shell min-h-screen bg-[#f5f8ff] pb-36 text-navy-950 transition-colors dark:bg-[#020817] dark:text-white"><Toaster position="top-center"/>
     {serviceOpen&&<div className="fixed inset-0 z-[140] grid place-items-end bg-navy-950/60 p-3 backdrop-blur-sm sm:place-items-center"><section className="w-full max-w-sm rounded-3xl bg-white p-5 text-navy-950 shadow-2xl"><div className="flex items-start justify-between"><div><h2 className="text-xl font-black">Permintaan meja {tableNum}</h2><p className="mt-1 text-sm text-slate-500">Staf cabang akan melihat permintaan ini.</p></div><button onClick={()=>setServiceOpen(false)} aria-label="Tutup" className="rounded-lg p-2 text-xl">×</button></div><div className="mt-4 grid gap-2">{[["waiter","Panggil pelayan"],["bill","Minta tagihan"],["utensils","Minta alat makan"],["water","Minta air"],["other","Permintaan lainnya"]].map(([type,label])=><button key={type} disabled={serviceBusy} onClick={()=>sendTableRequest(type)} className="rounded-xl border border-blue-100 p-3 text-left font-bold hover:bg-blue-50 disabled:opacity-50">{serviceBusy?"Mengirim…":label}</button>)}</div></section></div>}

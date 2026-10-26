@@ -20,7 +20,7 @@ test('Luu renders complete geometry on server, with independent ID and filter re
  for(const match of html.matchAll(/url\(#([^)]+)\)/g))assert.ok(ids.includes(match[1]));
  assert.doesNotMatch(html,/NaN|<button|<script/);assert.match(html,/data-luu-part="bodyFill"/);
  assert.match(art.drained,/<feColorMatrix[^>]*values="0"/);
- assert.deepEqual(Object.keys(art),['drained','thinking','confused','celebrating']);
+ assert.deepEqual(Object.keys(art),['drained','thinking','confused','celebrating','sleeping']);
 });
 test('rig respects reduced motion and cleans frames, observers and listeners',()=>{
  const nodes={};for(const m of art.drained.matchAll(/data-luu-part="([^"]+)"/g))nodes[m[1]]={getAttribute:()=>null,setAttribute(){},children:[]};

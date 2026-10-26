@@ -64,7 +64,10 @@ confused:pose(t => ({head:-7 + .5*sin(t), gazeX:3, gazeY:-1,
       eye:.9, smile:-.5, brows:.85, browL:-6, browR:11, props:['q']})),
 celebrating:pose(t => ({...jump(t,1.5,28), lX:68, lY:195,
       rX:232, rY:195, bendL:-9, bendR:9, eye:0, open:1,
-      smile:1, earL:6, earR:-6, legL:2, legR:7, props:['conf','spark']}))};
+      smile:1, earL:6, earR:-6, legL:2, legR:7, props:['conf','spark']})),
+sleeping:pose(t => ({sleep:1, eye:0, closedCurve:5, smile:.65,
+      lX:110, lY:249, rX:190, rY:253, tail:-5,
+      sy:1+.005*sin(t*1.2), props:['pillow','blanket','zzz']}))};
   function armD(side, c) {
     const left = side === 'L';
     const A = [left ? 111 : 189, 211+c.sit*8];

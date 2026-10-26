@@ -1,0 +1,7 @@
+/* LUUJAAA animated logo — stylesheet. Ukuran: ubah --luu-size (mis. 160px … 720px). */
+.luu{--luu-size:min(720px,92vw);position:relative;display:block;width:var(--luu-size);aspect-ratio:2172/724;contain:layout style;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+.luu[data-state="hidden"]{visibility:hidden}
+.luu-stage{position:absolute;inset:0;transform-origin:50% 62%}
+.luu-layer{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;transform-origin:var(--ox,50%) 62%;pointer-events:none;-webkit-user-drag:none;backface-visibility:hidden}
+.luu[data-state="visible"] .luu-layer,.luu[data-state="exiting"] .luu-layer{opacity:1}
+.luu[data-state="entering"] .luu-layer,.luu[data-state="exiting"] .luu-layer,.luu[data-state="entering"] .luu-stage,.luu[data-state="exiting"] .luu-stage{will-change:transform,opacity}

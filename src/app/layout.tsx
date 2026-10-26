@@ -2,6 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./restaurant.css";
 import "./soft-ui.css";
+import "@/lib/mascot/logo.css";
+import "./brand.css";
+import SiteBrandHeader from "@/components/SiteBrandHeader";
 import { OrderProvider } from "@/contexts/OrderContext";
 import { PreferencesProvider } from "@/contexts/PreferencesContext";
 import FloatingNav from "@/components/FloatingNav";
@@ -39,7 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="antialiased">
         <PreferencesProvider><MotionProvider><AuthProvider><OrderProvider>
-          <PushNotificationProvider><ConnectivityGuard>{children}<FloatingNav /></ConnectivityGuard></PushNotificationProvider>
+          <PushNotificationProvider><ConnectivityGuard><SiteBrandHeader/>{children}<FloatingNav /></ConnectivityGuard></PushNotificationProvider>
         </OrderProvider></AuthProvider></MotionProvider></PreferencesProvider>
       </body>
     </html>

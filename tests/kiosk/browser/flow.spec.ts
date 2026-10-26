@@ -172,8 +172,12 @@ test("empty, closed and unconfigured states are usable", async ({ page }) => {
   await fixture(page, { empty: true }); await page.goto("/kiosk");
   await page.getByRole("button", { name: /Bawa pulang/ }).click();
   await expect(page.getByRole("heading", { name: "Menu belum tersedia" })).toBeVisible();
+  await page.getByRole("textbox",{name:"Cari menu"}).fill("tidak ada");
+  await expect(page.locator('[data-luu-pose="confused"]')).toBeVisible();
   await page.unrouteAll(); await fixture(page, { closed: true }); await page.goto("/kiosk");
   await expect(page.getByRole("heading", { name: "Cabang sedang tutup" })).toBeVisible();
+  await expect(page.locator('[data-luu-pose="sleeping"]')).toBeVisible();
+  await expect(page.locator('header [data-brand-logo]')).toBeVisible();
   await page.unrouteAll(); await fixture(page, { fail: true }); await page.goto("/kiosk");
   await expect(page.getByRole("button", { name: "Muat kembali" })).toBeVisible();
 });

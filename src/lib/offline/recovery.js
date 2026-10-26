@@ -6,6 +6,8 @@ function bootRecovery(){
  const origin=location.origin==='null'?parent.location.origin:location.origin;
  let reduced=false;try{reduced=localStorage.getItem('selforder_reduce_motion')==='1';const theme=localStorage.getItem('selforder_theme');document.documentElement.classList.toggle('dark',theme==='dark'||((!theme||theme==='system')&&matchMedia('(prefers-color-scheme: dark)').matches));}catch{}
  const rig=createLuu(byId('mascot').querySelector('svg'),{pose:'drained',reducedMotion:reduced});
+ const logoElement=byId('brand-logo');
+ const logo=createLuuLogo(logoElement,{src:logoElement.querySelector('img').src,reducedMotion:reduced});
  const stopGame=mountGame(byId);
  byId('draft').replaceChildren();byId('saved').hidden=true;byId('empty-draft').hidden=false;
  try{
@@ -43,7 +45,9 @@ function bootRecovery(){
  byId('retry').addEventListener('click',retry);window.addEventListener('message',message);
  if(embedded){paint({status:mode==='error'?'unavailable':'offline'});parent.postMessage({type:'luu:ready'},origin);}
  byId('heading').focus({preventScroll:true});
- return()=>{rig.destroy();monitor?.dispose();stopGame();byId('retry').removeEventListener('click',retry);window.removeEventListener('message',message);};
+ // Keep a static image for a later back/forward-cache restoration.
+ const logoSrc=logoElement.querySelector('img').src;
+ return()=>{rig.destroy();logo.destroy();logoElement.classList.remove('luu');const image=document.createElement('img');image.src=logoSrc;image.alt='';image.style.width='100%';logoElement.replaceChildren(image);monitor?.dispose();stopGame();byId('retry').removeEventListener('click',retry);window.removeEventListener('message',message);};
 }
 let disposeRecovery=bootRecovery();
 window.addEventListener('pagehide',()=>disposeRecovery());

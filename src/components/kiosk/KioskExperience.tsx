@@ -1,5 +1,7 @@
 "use client";
 import LuuMascot from "@/components/LuuMascot";
+import LuuLogo from "@/components/LuuLogo";
+import MenuLoading from "@/components/MenuLoading";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -33,15 +35,6 @@ function MenuImage({ item, hero = false }: { item?: MenuItem; hero?: boolean }) 
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={item.image} alt={item.name} onError={() => setFailed(true)} loading={hero ? "eager" : "lazy"} className={styles.menuImage} />;
 }
-function StoreIdentity({ name, logo }: { name: string; logo?: string | null }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [logo]);
-  return <span className={styles.brandMark}>{logo && !failed ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={logo} alt="" onError={() => setFailed(true)} />
-  ) : name.trim().slice(0, 1).toUpperCase()}</span>;
-}
-
 export default function KioskExperience() {
   const [catalog, setCatalog] = useState<KioskCatalog | null>(null);
   const [loading, setLoading] = useState(true);
@@ -259,13 +252,13 @@ export default function KioskExperience() {
   return <main className={styles.kiosk}>
     <div className={styles.live} role="status" aria-live="polite">{announcement}</div>
     <header className={styles.header}>
-      <div className={styles.brand}><StoreIdentity name={catalog?.store.name || "KIOSK"} logo={catalog?.store.logo} /><div><strong>{catalog?.store.name || "Selamat datang"}</strong><span>SELF-ORDER KIOSK</span></div></div>
+      <div className={styles.brand}><LuuLogo width={120}/><div><strong>{catalog?.store.name || "Selamat datang"}</strong><span>SELF-ORDER KIOSK</span></div></div>
       <div className={styles.location}><MapPin size={17} /><span>{catalog?.store.address || catalog?.store.name || "Pesan langsung di toko"}</span></div>
       {step !== "welcome" && <button className={styles.quietButton} disabled={busy} onClick={() => setResetPrompt(true)}><Home size={18} /><span>Mulai ulang</span></button>}
     </header>
     {!online && <div className={styles.alert} role="alert">Koneksi terputus. Pesanan tidak akan dikirim ulang secara otomatis. Sambungkan jaringan lalu coba kembali.</div>}
     {error && <div className={styles.alert} role="alert"><span>{error}</span><button aria-label="Tutup pemberitahuan" onClick={() => setError("")}><X size={18} /></button></div>}
-    {loading && !catalog ? <div className={styles.loading} aria-label="Memuat menu" aria-busy="true"><div className={styles.skeletonHero} /><div className={styles.skeletonGrid}>{Array.from({ length: 6 }, (_, i) => <div key={i} />)}</div></div> : !catalog ? <section className={styles.empty}><Coffee size={48} /><h1 ref={heading} tabIndex={-1}>Kami sedang menyiapkan KIOSK</h1><p>Silakan hubungi petugas atau coba muat kembali.</p><button className={styles.primary} onClick={() => void load()}><RefreshCw size={20} />Muat kembali</button></section> : <>
+    {loading && !catalog ? <MenuLoading stage="Memuat menu dan informasi cabang…"/> : !catalog ? <section className={styles.empty}><Coffee size={48} /><h1 ref={heading} tabIndex={-1}>Kami sedang menyiapkan KIOSK</h1><p>Silakan hubungi petugas atau coba muat kembali.</p><button className={styles.primary} onClick={() => void load()}><RefreshCw size={20} />Muat kembali</button></section> : <>
       {step !== "welcome" && <nav className={styles.steps} aria-label="Tahap pemesanan">{["Menu", "Keranjang", "Checkout", "Pembayaran", "Selesai"].map((label, i) => {
         const index = ["menu", "cart", "checkout", "payment", "confirmation"].indexOf(step);
         return <span key={label} className={i <= index ? styles.stepActive : ""} aria-current={i === index ? "step" : undefined}><b>{i < index ? <Check size={14} /> : String(i + 1).padStart(2, "0")}</b><span>{label}</span>{i < 4 && <ChevronRight size={14} />}</span>;
@@ -273,7 +266,7 @@ export default function KioskExperience() {
       <AnimatePresence mode="wait" initial={false}><motion.div key={step} initial={{ opacity: 0, y: reducedMotion ? 0 : 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: reducedMotion ? 0 : .18 }} onAnimationComplete={() => heading.current?.focus({ preventScroll: true })}>
         {step === "welcome" && <section className={styles.welcome}>
           <div className={styles.welcomeCopy}><span className={styles.welcomeLabel}>Pesan mandiri</span><h1 ref={heading} tabIndex={-1}>Mau makan di sini<br />atau bawa pulang?</h1><p>Pilih cara menikmati pesanan Anda.</p>
-            {!catalog.operating.is_open ? <div className={styles.closed}><Clock3 /><h2>Cabang sedang tutup</h2><p>{catalog.operating.next_open_label ? `Buka kembali ${catalog.operating.next_open_label}.` : "Silakan hubungi petugas untuk informasi jam buka."}</p><button className={styles.secondary} onClick={() => void load()}>Periksa kembali</button></div> : <div className={styles.modeChoices}>
+            {!catalog.operating.is_open ? <div className={styles.closed}><LuuMascot pose="sleeping" size={190}/><h2>Cabang sedang tutup</h2><p>{catalog.operating.next_open_label ? `Buka kembali ${catalog.operating.next_open_label}.` : "Silakan hubungi petugas untuk informasi jam buka."}</p><button className={styles.secondary} onClick={() => void load()}>Periksa kembali</button></div> : <div className={styles.modeChoices}>
               <button disabled={busy || !online} onClick={() => start("dine_in")}><Utensils size={28} /><strong>Makan di sini</strong><span>Pilih meja saat checkout</span><ArrowRight /></button>
               <button disabled={busy || !online} onClick={() => start("takeaway")}><ShoppingBag size={28} /><strong>Bawa pulang</strong><span>Ambil pesanan di konter</span><ArrowRight /></button>
             </div>}
@@ -289,7 +282,7 @@ export default function KioskExperience() {
           {filtered.length ? <div className={styles.productGrid}>{filtered.map(item => <button key={item.id} className={styles.product} disabled={unavailable(item)} onClick={() => openItem(item)} aria-label={`${item.name}, ${money(Number(item.price))}${unavailable(item) ? ", habis" : ""}`}>
             <div className={styles.productVisual}><MenuImage item={item} />{item.is_featured && <span className={styles.productBadge}>Pilihan kami</span>}{unavailable(item) && <span className={styles.soldOut}>Sedang habis</span>}</div>
             <div className={styles.productBody}><h2>{item.name}</h2><p>{item.description || catalog.categories.find(c => c.id === item.category_id)?.name}</p><div><strong>{money(Number(item.price))}</strong><span className={styles.addIcon}><Plus size={20} /></span></div></div>
-          </button>)}</div> : <div className={styles.empty}><Search size={36} /><h2>{search ? "Belum menemukan yang cocok?" : "Menu belum tersedia"}</h2><p>{search ? "Coba kata lain atau lihat semua kategori." : "Petugas sedang menyiapkan pilihan untuk cabang ini."}</p><button className={styles.secondary} onClick={() => { setCategory("all"); setSearch(""); void load(); }}>Lihat semua menu</button></div>}
+          </button>)}</div> : <div className={styles.empty}>{search.trim()?<LuuMascot pose="confused" size={130}/>:<Search size={36}/>}<h2>{search ? "Belum menemukan yang cocok?" : "Menu belum tersedia"}</h2><p>{search ? "Coba kata lain atau lihat semua kategori." : "Petugas sedang menyiapkan pilihan untuk cabang ini."}</p><button className={styles.secondary} onClick={() => { setCategory("all"); setSearch(""); void load(); }}>Lihat semua menu</button></div>}
         </section><aside className={styles.orderPanel}><div className={styles.panelHeading}><ShoppingBasket size={23} /><h2>Pesanan Anda</h2><span>{count}</span></div><div className={styles.modeTag}>{mode === "dine_in" ? <Utensils size={15} /> : <ShoppingBag size={15} />}{mode === "dine_in" ? "Makan di sini" : "Bawa pulang"}</div>
           {cart.length ? <>{renderLines()}{renderTotals()}<button className={styles.primary} onClick={() => setStep("cart")}>Periksa pesanan<ArrowRight size={20} /></button></> : <div className={styles.emptyCart}><ShoppingBag size={40} strokeWidth={1.2} /><h3>Belum ada pesanan</h3><p>Sentuh menu untuk menambahkannya ke pesanan.</p></div>}
           <div className={styles.panelFooter}><ShieldCheck size={16} />Periksa pesanan sebelum membayar</div>

@@ -11,7 +11,7 @@ const script=source.match(/<script>([\s\S]*?)<\/script>/)[1];
 const ast=ts.createSourceFile('studio.js',script,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
 let held;
 function visit(node){if(ts.isVariableDeclaration(node)&&node.name.getText(ast)==='HELD')held=node.initializer;ts.forEachChild(node,visit)}visit(ast);
-const poses={drained:'p_drained',thinking:'thinking',confused:'p_confused',celebrating:'p_celebrating'};
+const poses={drained:'p_drained',thinking:'thinking',confused:'p_confused',celebrating:'p_celebrating',sleeping:'p_sleeping'};
 const entries=Object.entries(poses).map(([key,original])=>`${key}:${held.properties.find(p=>p.name.getText(ast)===original).initializer.getText(ast)}`);
 const constants=script.slice(script.indexOf('  const PI ='),script.indexOf('  const motionQuery'));
 const defaults=script.slice(script.indexOf('  const D ='),script.indexOf('  let time ='));
@@ -75,4 +75,4 @@ for(const pose of Object.keys(poses)){
  });
 }
 writeFileSync('src/lib/mascot/luu-art.json',JSON.stringify(snapshots));
-console.log('Extracted original SVG, geometry and four application poses.');
+console.log('Extracted original SVG, geometry and five application poses.');

@@ -1,0 +1,17 @@
+.luu-logo{display:inline-block;flex-shrink:0;border-radius:9px;background:#fff;vertical-align:middle;padding:3px 5px;box-sizing:border-box}
+.luu-logo .luu{width:100%}
+.site-brand-header{display:flex;align-items:center;min-height:56px;padding:8px max(16px,env(safe-area-inset-left)) 8px;background:#f7f8fa;padding-top:max(8px,env(safe-area-inset-top));border-bottom:1px solid #e8edf2}
+.dark .site-brand-header{background:#0c1828;border-color:#ffffff12}
+.site-brand-dashboard{padding-left:72px}
+.menu-loading{display:grid;min-height:calc(100dvh - 56px);place-items:center;background:#f7f8fa;padding:24px;text-align:center;color:#142b45}
+.dark .menu-loading{background:#0c1828;color:white}
+.menu-loading-copy{max-width:320px;width:100%}
+.menu-loading-copy>.luu-logo{margin-bottom:20px}
+.menu-loading-copy p{margin-top:16px;font-size:14px}
+.menu-loading-copy small{display:block;margin-top:8px;color:#64748b}
+.store-closed{display:grid;min-height:calc(100dvh - 56px);place-items:center;padding:24px 20px 120px;text-align:center;background:#f7f8fa;color:#142b45}
+.dark .store-closed{background:#0c1828;color:#fff}
+.store-closed h1{font-size:clamp(24px,5vw,32px);font-weight:700;margin:12px 0}
+.store-closed p{margin:8px 0;color:#64748b}
+.dark .store-closed p{color:#a9b9cc}
+@media(min-width:1024px){.site-brand-dashboard{display:none}}

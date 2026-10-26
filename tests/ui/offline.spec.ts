@@ -6,6 +6,7 @@ test("offline screen works without a service worker; game matches and restarts",
   await context.setOffline(true);
   const frame = page.frameLocator('iframe[title="Pemulihan koneksi bersama Luu"]');
   await expect(frame.getByRole("heading", { name: "Koneksi lagi terputus" })).toBeVisible();
+  await expect(frame.getByRole("img",{name:"Luujaaa"})).toBeVisible();
   await frame.getByText("Main sebentar",{exact:true}).click();
   const cards = frame.locator(".tile");
   await expect(cards).toHaveCount(12);
